@@ -72,33 +72,51 @@ theorem ann_cre {α : Type} (x : α) :  ann x * cre x = 1 - (cre x * ann x) := b
   right
   use x
 
-namespace conjugate
+namespace conjugation
 
-def cre_ann_conj {α : Type} : CreAnn α → CreAnn α
+def conj₀ {α : Type} : CreAnn α → CreAnn α
   | CreAnn.cre x => CreAnn.ann x
   | CreAnn.ann x => CreAnn.cre x
 
-lemma cre_ann_conj_involutive {α : Type} : ∀ x : CreAnn α, cre_ann_conj (cre_ann_conj x) = x
-  | CreAnn.cre x => by simp only [cre_ann_conj]
-  | CreAnn.ann x => by simp only [cre_ann_conj]
+lemma involutive {α : Type} : ∀ x : CreAnn α, conj₀ (conj₀ x) = x
+  | CreAnn.cre x => by simp only [conj₀]
+  | CreAnn.ann x => by simp only [conj₀]
 
---open FreeAlgebra in
---instance creAnnStarRing (α : Type) : StarRing (FreeAlgebra ℝ (CreAnn α)) where
---  star := MulOpposite.unop ∘ (lift ℝ (MulOpposite.op ∘ ι ℝ ∘ cre_ann_conj))
---  star_involutive x := by
---    simp only[Function.comp_apply]
---    let y := lift ℝ (X := CreAnn α) (MulOpposite.op ∘ ι ℝ ∘ cre_ann_conj)
---    refine induction (motive := fun x ↦ (y (y x).unop).unop = x) _ _ ?_ ?_ ?_ ?_ x
---    · simp 
---    · simp [y,cre_ann_conj_involutive]
---    · simp +contextual
---    · simp +contextual
---  star_add a b := by simp
---  star_mul a b := by simp
+def conjₐ {α : Type} : (FreeAlgebra ℝ (CreAnn α)) →ₐ[ℝ]  (Operator α)ᵐᵒᵖ :=
+  (Ideal.Quotient.mkₐ ℝ _).comp (FreeAlgebra.lift ℝ (FreeAlgebra.ι ℝ ∘ conj₀)) 
+
+def conj {α : Type} : Operator α →ₐ[ℝ] Operator α :=
+  Ideal.Quotient.liftₐ _ conjₐ (by
+    intro a h
+    rw[TwoSidedIdeal.mem_asIdeal] at h
+    refine TwoSidedIdeal.span_induction ?_ ?_ ?_ ?_ ?_ ?_ h
+    · intro x h
+      rcases h with h | h
+      · rw[conjₐ,AlgHom.comp_apply,Ideal.Quotient.mkₐ_eq_mk,Ideal.Quotient.eq_zero_iff_mem,
+           TwoSidedIdeal.mem_asIdeal]
+        apply TwoSidedIdeal.subset_span
+        rcases h with ⟨a,b,h | h | h⟩
+        · simp [h, cre', conj₀]
+          rw[←ann',←ann']
+          left
+          use a,b
+          simp
+        · simp[h,ann',conj₀]
+          rw[←cre',←cre']
+          left
+          use a,b
+          simp
+        · simp[h.2,ann',cre',conj₀]
+          rw[←ann',←cre']
+          left
+          use b,a
+          right; right
+          nth_rw 1 [add_comm]
+          exact ⟨h.1 ∘ Eq.symm, rfl⟩
+      · rw[conj
+  )
 
 
-def cre_ann_conj_alghom {α : Type} : (FreeAlgebra ℝ (CreAnn α)) →ₐ[ℝ] (FreeAlgebra ℝ (CreAnn α)) where
-  toFun := FreeAlgebra.lift ℝ (MulOpposite.op ∘ FreeAlgebra.ι ℝ ∘ cre_ann_conj)
 
 instance operatorStarRing (α : Type) : StarRing (Operator α) where
   star := Quotient.lift (Ideal.Quotient.mk _ ∘ star) (by
@@ -107,5 +125,6 @@ instance operatorStarRing (α : Type) : StarRing (Operator α) where
     rw[Ideal.Quotient.mk_eq_mk_iff_sub_mem]
     simp [HasEquiv.Equiv]at h
 
+end conjugation
 
 end Fock
