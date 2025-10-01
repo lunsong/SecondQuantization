@@ -102,6 +102,78 @@ theorem ann_cre {α : Type} (x : α) :  ann x * cre x = 1 - (cre x * ann x) := b
   right
   use x
 
+abbrev representation (α : Type) : Type := (α → Bool → ℝ) →ₗ[ℝ] (α → Bool → ℝ)
+
+namespace representation
+
+open Classical
+in noncomputable def cre {α : Type} [LT α] (i : α) : representation α where
+  toFun := fun x j s ↦ 
+    if i = j then if s then x i false else 0
+    else if j < i then - x j s
+    else x j s
+  map_add' x y := by
+    ext j s
+    simp
+    split
+    · split
+      · rfl
+      · norm_num
+    · split
+      · rw[add_comm]
+      · rfl
+  map_smul' m x := by
+    ext j s
+    simp
+
+
+open Classical
+in noncomputable def ann {α : Type} [LT α] (i : α) : representation α where
+  toFun := fun x j s ↦ 
+    if i = j then if !s then x i true else 0
+    else if j < i then - x j s
+    else x j s
+  map_add' x y := by
+    ext j s
+    simp
+    split
+    · split
+      · rfl
+      · norm_num
+    · split
+      · rw[add_comm]
+      · rfl
+  map_smul' m x := by
+    ext j s
+    simp
+
+noncomputable def φ {α : Type} [LT α] : CreAnn α → ((α → Bool → ℝ) →ₗ[ℝ] (α → Bool → ℝ))
+  | CreAnn.cre a => cre a
+  | CreAnn.ann a => ann a
+
+end representation
+
+/-
+noncomputable def to_representation {α : Type} [LinearOrder α] :
+    Operator α →ₐ[ℝ] ((α → Bool → ℝ) →ₗ[ℝ] (α → Bool → ℝ)) :=
+  Ideal.Quotient.liftₐ _ (FreeAlgebra.lift _ representation.φ) (by
+    intro a h
+    rw[←TwoSidedIdeal.mem_ker]
+    rw[TwoSidedIdeal.mem_asIdeal] at h
+    let ψ := (FreeAlgebra.lift ℝ) (representation.φ (α := α))
+    suffices final : TwoSidedIdeal.span (commutators α) ≤ TwoSidedIdeal.ker ψ from final h
+    rw[TwoSidedIdeal.span_le]
+    intro x h
+    simp[TwoSidedIdeal.ker]
+    rcases h with ⟨a, b, h | h | h⟩ | ⟨a, h⟩
+    · simp[h,ψ,representation.φ]
+      ext x i s
+      simp[representation.cre]
+      split_ifs
+
+  )
+-/
+
 /-- 0 ≠ 1 for operators -/
 theorem zero_ne_one {α : Type} : (0 : Operator α) ≠ 1 := by sorry
 
