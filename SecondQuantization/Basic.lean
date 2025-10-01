@@ -69,19 +69,7 @@ theorem ann_cre {α : Type} (x : α) :  ann x * cre x = 1 - (cre x * ann x) := b
   right
   use x
 
-namespace injectivity
-
-noncomputable def to_polynomial {α : Type} : (FreeAlgebra ℝ (CreAnn α)) →ₐ[ℝ] Polynomial ℝ := FreeAlgebra.lift ℝ fun _ ↦ Polynomial.X
-
-end injectivity
-
-theorem zero_ne_one {α : Type} : (0 : Operator α) ≠ 1 := by
-  rw[Ideal.Quotient.zero_ne_one_iff,Ideal.ne_top_iff_one,TwoSidedIdeal.mem_asIdeal]
-  let φ := FreeAlgebra.lift ℝ fun (_ : CreAnn α) ↦ (Polynomial.X : Polynomial ℝ)
-  have : ∀ x ∈ TwoSidedIdeal.span (commutators α), 0 < (φ x).degree := by
-
-
-
+theorem zero_ne_one {α : Type} : (0 : Operator α) ≠ 1 := by sorry
 
 theorem cre_inj {α : Type} : Function.Injective (@cre α) := by
   intro x y h
@@ -90,13 +78,6 @@ theorem cre_inj {α : Type} : Function.Injective (@cre α) := by
   rw[sub_eq_iff_eq_add,neg_add_cancel] at this
   replace this := this.symm
   exact zero_ne_one this
-
-
-/-
-
-theorem zero_ne_one {α : Type} : (0 : Operator α) ≠ 1 := by
--/
-
 
 namespace conjugation
 
