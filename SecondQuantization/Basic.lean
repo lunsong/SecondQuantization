@@ -71,38 +71,16 @@ theorem ann_cre {α : Type} (x : α) :  ann x * cre x = 1 - (cre x * ann x) := b
 
 namespace injectivity
 
-noncomputable def to_polynomial {α : Type} : (FreeAlgebra ℝ (CreAnn α)) →ₐ[ℝ] Polynomial ℝ :=
-  FreeAlgebra.lift ℝ fun _ ↦ Polynomial.X
+noncomputable def to_polynomial {α : Type} : (FreeAlgebra ℝ (CreAnn α)) →ₐ[ℝ] Polynomial ℝ := FreeAlgebra.lift ℝ fun _ ↦ Polynomial.X
 
 end injectivity
 
 theorem zero_ne_one {α : Type} : (0 : Operator α) ≠ 1 := by
   rw[Ideal.Quotient.zero_ne_one_iff,Ideal.ne_top_iff_one,TwoSidedIdeal.mem_asIdeal]
-  suffices h : ∀ x ∈ TwoSidedIdeal.span (commutators α), x ≠ 1 from fun hc ↦ h 1 hc rfl
-  intro x
-  refine TwoSidedIdeal.span_induction ?_ ?_ ?_ ?_ ?_ ?_
-  · intro x h
-    rcases h with ⟨a, b, h | h | h⟩ | ⟨a, h⟩
-    · rw[h,cre',cre']
-      intro hc
-      replace hc := congrArg FreeAlgebra.algebraMapInv hc
-      simp [FreeAlgebra.algebraMapInv] at hc
-    · rw[h,ann',ann']
-      intro hc
-      replace hc := congrArg FreeAlgebra.algebraMapInv hc
-      simp [FreeAlgebra.algebraMapInv] at hc
-    . rw[h.2,ann',cre']
-      intro hc
-      replace hc := congrArg FreeAlgebra.algebraMapInv hc
-      simp [FreeAlgebra.algebraMapInv] at hc
-    · rw[h,ann',cre']
-      intro hc
-      replace hc := congrArg FreeAlgebra.algebraMapInv hc
-      simp [FreeAlgebra.algebraMapInv] at hc
-      rw[←add_eq_zero_iff_neg_eq] at hc
-      simp at hc
-  · simp
-  · intro x y hx hy h₁ h₂
+  let φ := FreeAlgebra.lift ℝ fun (_ : CreAnn α) ↦ (Polynomial.X : Polynomial ℝ)
+  have : ∀ x ∈ TwoSidedIdeal.span (commutators α), 0 < (φ x).degree := by
+
+
 
 
 theorem cre_inj {α : Type} : Function.Injective (@cre α) := by
