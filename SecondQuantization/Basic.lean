@@ -7,6 +7,8 @@ import Mathlib.Algebra.Star.Free
 import Mathlib.Algebra.FreeAlgebra
 import Mathlib.Data.Complex.Basic
 import Mathlib.RingTheory.Ideal.Span
+import Mathlib.Algebra.Polynomial.Basic
+import Mathlib.Algebra.Polynomial.AlgebraMap
 
 namespace Fock
 
@@ -66,6 +68,57 @@ theorem ann_cre {α : Type} (x : α) :  ann x * cre x = 1 - (cre x * ann x) := b
   apply TwoSidedIdeal.subset_span
   right
   use x
+
+namespace injectivity
+
+noncomputable def to_polynomial {α : Type} : (FreeAlgebra ℝ (CreAnn α)) →ₐ[ℝ] Polynomial ℝ :=
+  FreeAlgebra.lift ℝ fun _ ↦ Polynomial.X
+
+end injectivity
+
+theorem zero_ne_one {α : Type} : (0 : Operator α) ≠ 1 := by
+  rw[Ideal.Quotient.zero_ne_one_iff,Ideal.ne_top_iff_one,TwoSidedIdeal.mem_asIdeal]
+  suffices h : ∀ x ∈ TwoSidedIdeal.span (commutators α), x ≠ 1 from fun hc ↦ h 1 hc rfl
+  intro x
+  refine TwoSidedIdeal.span_induction ?_ ?_ ?_ ?_ ?_ ?_
+  · intro x h
+    rcases h with ⟨a, b, h | h | h⟩ | ⟨a, h⟩
+    · rw[h,cre',cre']
+      intro hc
+      replace hc := congrArg FreeAlgebra.algebraMapInv hc
+      simp [FreeAlgebra.algebraMapInv] at hc
+    · rw[h,ann',ann']
+      intro hc
+      replace hc := congrArg FreeAlgebra.algebraMapInv hc
+      simp [FreeAlgebra.algebraMapInv] at hc
+    . rw[h.2,ann',cre']
+      intro hc
+      replace hc := congrArg FreeAlgebra.algebraMapInv hc
+      simp [FreeAlgebra.algebraMapInv] at hc
+    · rw[h,ann',cre']
+      intro hc
+      replace hc := congrArg FreeAlgebra.algebraMapInv hc
+      simp [FreeAlgebra.algebraMapInv] at hc
+      rw[←add_eq_zero_iff_neg_eq] at hc
+      simp at hc
+  · simp
+  · intro x y hx hy h₁ h₂
+
+
+theorem cre_inj {α : Type} : Function.Injective (@cre α) := by
+  intro x y h
+  by_contra! hc
+  have := (ann_cre _) ▸ h ▸ (ann_cre_ne _ _ hc)
+  rw[sub_eq_iff_eq_add,neg_add_cancel] at this
+  replace this := this.symm
+  exact zero_ne_one this
+
+
+/-
+
+theorem zero_ne_one {α : Type} : (0 : Operator α) ≠ 1 := by
+-/
+
 
 namespace conjugation
 
