@@ -73,7 +73,7 @@ def conj₀ {α : Type} : CreAnn α → CreAnn α
   | CreAnn.cre x => CreAnn.ann x
   | CreAnn.ann x => CreAnn.cre x
 
-lemma involutive {α : Type} : ∀ x : CreAnn α, conj₀ (conj₀ x) = x
+lemma conj₀_involutive {α : Type} : ∀ x : CreAnn α, conj₀ (conj₀ x) = x
   | CreAnn.cre x => by simp only [conj₀]
   | CreAnn.ann x => by simp only [conj₀]
 
@@ -118,14 +118,44 @@ def conj {α : Type} : Operator α → Operator α :=
       exact TwoSidedIdeal.mul_mem_left _ _ _ h
   )
 
+theorem mk_eq_mk {α : Type} (a : FreeAlgebra ℝ (CreAnn α)) :
+    (Ideal.Quotient.mk _ a: Operator α) = ⟦a⟧ := rfl
 
+set_option synthInstance.maxHeartbeats 30000 in 
+-- This is needed otherwise lean will fail to synthesize AddHomClass for Ideal.Quotient.mk
 instance operatorStarRing (α : Type) : StarRing (Operator α) where
-  star := Quotient.lift (Ideal.Quotient.mk _ ∘ star) (by
-    intro x y h
-    simp
-    rw[Ideal.Quotient.mk_eq_mk_iff_sub_mem]
-    simp [HasEquiv.Equiv]at h
+  star := conj
+  star_involutive x := by
+    refine Submodule.Quotient.induction_on _ x ?_
+    intro x
+    rw[Submodule.Quotient.mk]
+    simp[conj,conj₂,←Ideal.Quotient.mk_eq_mk,Submodule.Quotient.mk]
+    congr 1
+    refine FreeAlgebra.induction _ _ ?_ ?_ ?_ ?_ x
+    · simp
+    · simp[conj₁,conj₀_involutive]
+    · simp +contextual
+    · simp +contextual
+  star_add := by
+    apply Quotient.ind₂
+    intro a b
+    rw[←mk_eq_mk,←mk_eq_mk,←map_add,mk_eq_mk,mk_eq_mk, mk_eq_mk]
+    simp [conj,Quotient.lift_mk,conj₂]
+  star_mul := by
+    apply Quotient.ind₂
+    intro a b
+    rw [←mk_eq_mk,←mk_eq_mk,←map_mul,mk_eq_mk,mk_eq_mk, mk_eq_mk,
+      conj,Quotient.lift_mk,Quotient.lift_mk,Quotient.lift_mk]
+    simp[conj₂]
 
 end conjugation
+
+open conjugation in
+theorem star_cre {α : Type} (x : α) : star (cre x) = ann x := by
+  simp[star,conj,mk_eq_mk,conj₂,conj₁,conj₀]
+
+open conjugation in
+theorem star_ann {α : Type} (x : α) : star (ann x) = cre x := by
+  simp[star,conj,mk_eq_mk,conj₂,conj₁,conj₀]
 
 end Fock
