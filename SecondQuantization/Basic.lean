@@ -102,54 +102,16 @@ theorem ann_cre {α : Type} (x : α) :  ann x * cre x = 1 - (cre x * ann x) := b
   right
   use x
 
-abbrev representation (α : Type) : Type := (α → Bool → ℝ) →ₗ[ℝ] (α → Bool → ℝ)
+abbrev representation (α : Type) : Type := ((α → Bool) → ℝ) →ₗ[ℝ] ((α → Bool) → ℝ)
 
 namespace representation
 
 open Classical
-in noncomputable def cre {α : Type} [LT α] (i : α) : representation α where
-  toFun := fun x j s ↦ 
-    if i = j then if s then x i false else 0
-    else if j < i then - x j s
-    else x j s
-  map_add' x y := by
-    ext j s
-    simp
-    split
-    · split
-      · rfl
-      · norm_num
-    · split
-      · rw[add_comm]
-      · rfl
-  map_smul' m x := by
-    ext j s
-    simp
-
-
-open Classical
-in noncomputable def ann {α : Type} [LT α] (i : α) : representation α where
-  toFun := fun x j s ↦ 
-    if i = j then if !s then x i true else 0
-    else if j < i then - x j s
-    else x j s
-  map_add' x y := by
-    ext j s
-    simp
-    split
-    · split
-      · rfl
-      · norm_num
-    · split
-      · rw[add_comm]
-      · rfl
-  map_smul' m x := by
-    ext j s
-    simp
-
-noncomputable def φ {α : Type} [LT α] : CreAnn α → ((α → Bool → ℝ) →ₗ[ℝ] (α → Bool → ℝ))
-  | CreAnn.cre a => cre a
-  | CreAnn.ann a => ann a
+in noncomputable def cre {α : Type} (i : α) : representation α where
+  toFun x s := 
+    if !(s i) then 
+      0 
+    else x (fun j ↦ if i = j then false else s j)
 
 end representation
 
