@@ -102,16 +102,75 @@ theorem ann_cre {α : Type} (x : α) :  ann x * cre x = 1 - (cre x * ann x) := b
   right
   use x
 
-abbrev representation (α : Type) : Type := ((α → Bool) → ℝ) →ₗ[ℝ] ((α → Bool) → ℝ)
+abbrev representation (α : Type) : Type := (Finset α → ℝ) →ₗ[ℝ] (Finset α → ℝ)
 
 namespace representation
 
+noncomputable section
+
 open Classical
-in noncomputable def cre {α : Type} (i : α) : representation α where
+in def cre {α : Type} [LT α] (i : α) : representation α where
   toFun x s := 
-    if !(s i) then 
-      0 
-    else x (fun j ↦ if i = j then false else s j)
+    if i ∉ s then
+      0
+    else if Even (Finset.filter (· < i) s).card then
+      x (s \ {i})
+    else
+      - (x (s \ {i}))
+  map_add' x y := by
+    ext s
+    simp
+    split_ifs
+    · rfl
+    · rw[add_comm]
+    · norm_num
+  map_smul' m x := by
+    ext s
+    simp
+
+open Classical
+in def ann {α : Type} [LT α] (i : α) : representation α where
+  toFun x s := 
+    if i ∈ s then
+      0
+    else if Even (Finset.filter (· < i) s).card then
+      x (s ∪ {i})
+    else
+      - (x (s ∪ {i}))
+  map_add' x y := by
+    ext s
+    simp
+    split_ifs
+    · norm_num
+    · rfl
+    · rw[add_comm]
+  map_smul' m x := by
+    ext s
+    simp
+
+def repr₀ {α : Type} [LT α] : CreAnn α → representation α
+  | CreAnn.cre i => cre i
+  | CreAnn.ann i => ann i
+
+def repr₁ {α : Type} [LT α] : FreeAlgebra ℝ (CreAnn α) →ₐ[ℝ] representation α :=
+  FreeAlgebra.lift ℝ repr₀
+
+theorem repr₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators α, repr₁ x = 0 := by
+  sorry
+
+def repr {α : Type} [LinearOrder α] : Operator α →ₐ[ℝ] representation α :=
+  Ideal.Quotient.liftₐ _ repr₁ (by
+    intro a h
+    rw[←TwoSidedIdeal.mem_ker]
+    rw[TwoSidedIdeal.mem_asIdeal] at h
+    suffices final : TwoSidedIdeal.span (commutators α) ≤ TwoSidedIdeal.ker repr₁ from final h
+    rw[TwoSidedIdeal.span_le]
+    intro x h
+    simp[TwoSidedIdeal.ker]
+    exact repr₁_commutators x h
+  )
+
+end
 
 end representation
 
@@ -119,11 +178,6 @@ end representation
 noncomputable def to_representation {α : Type} [LinearOrder α] :
     Operator α →ₐ[ℝ] ((α → Bool → ℝ) →ₗ[ℝ] (α → Bool → ℝ)) :=
   Ideal.Quotient.liftₐ _ (FreeAlgebra.lift _ representation.φ) (by
-    intro a h
-    rw[←TwoSidedIdeal.mem_ker]
-    rw[TwoSidedIdeal.mem_asIdeal] at h
-    let ψ := (FreeAlgebra.lift ℝ) (representation.φ (α := α))
-    suffices final : TwoSidedIdeal.span (commutators α) ≤ TwoSidedIdeal.ker ψ from final h
     rw[TwoSidedIdeal.span_le]
     intro x h
     simp[TwoSidedIdeal.ker]
