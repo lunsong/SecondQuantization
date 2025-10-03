@@ -109,6 +109,10 @@ namespace representation
 noncomputable section
 
 open Classical
+in abbrev commutator_sign {α : Type} [LT α] (s : Finset α) (a : α) : ℝ :=
+  if Even (Finset.filter (· < a) s).card then 1 else -1
+
+open Classical
 in def cre {α : Type} [LT α] (i : α) : representation α where
   toFun x s := 
     if i ∉ s then
@@ -156,7 +160,22 @@ def repr₁ {α : Type} [LT α] : FreeAlgebra ℝ (CreAnn α) →ₐ[ℝ] repres
   FreeAlgebra.lift ℝ repr₀
 
 theorem repr₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators α, repr₁ x = 0 := by
-  sorry
+  have helper (s : Finset α) (a b : α) :
+    (Finset.filter (· < a) (s \ {b})).card = (Finset.filter (· < a) s).card
+  /-
+  intro x h
+  rcases h with ⟨a, b, h | h | h⟩ | ⟨a, h⟩
+  · ext x s
+    simp[h,repr₁,repr₀,cre]
+    by_cases h₁ : a ∈ s
+    · by_cases h₂ : b ∈ s
+      have h₃ : (Finset.filter (· < a) (s \ {a})).card = (Finset.filter (· < a) s).card := by
+        congr 1
+        ext x
+        simp
+        exact fun h _ ↦ h.ne
+      simp[h₁,h₂,h₃]
+  -/
 
 def repr {α : Type} [LinearOrder α] : Operator α →ₐ[ℝ] representation α :=
   Ideal.Quotient.liftₐ _ repr₁ (by
@@ -174,13 +193,14 @@ end
 
 end representation
 
-/-- 0 ≠ 1 for operators -/
-theorem zero_ne_one {α : Type} [LinearOrder α] : (0 : Operator α) ≠ 1 := by
-  intro h
-  have repr0 : representation.repr (0 : Operator α) = 0 := by simp[representation.repr]
-  have repr1 : representation.repr (1 : Operator α) = 1 := by simp[representation.repr]
-  replace h := repr0 ▸ repr1 ▸ (congrArg representation.repr h)
-  simp at h
+/-- 1 ≠ 0 for `Operator` -/
+instance instNeZeroOne {α : Type} [LinearOrder α] : NeZero (1 : Operator α) where
+  out := by
+    intro h
+    have repr0 : representation.repr (0 : Operator α) = 0 := by simp[representation.repr]
+    have repr1 : representation.repr (1 : Operator α) = 1 := by simp[representation.repr]
+    replace h := repr0 ▸ repr1 ▸ (congrArg representation.repr h)
+    simp at h
 
 /-- The injectivity of `cre` -/
 theorem cre_inj {α : Type} [LinearOrder α] : Function.Injective (@cre α) := by
@@ -188,8 +208,7 @@ theorem cre_inj {α : Type} [LinearOrder α] : Function.Injective (@cre α) := b
   by_contra! hc
   have := (ann_cre _) ▸ h ▸ (ann_cre_ne _ _ hc)
   rw[sub_eq_iff_eq_add,neg_add_cancel] at this
-  replace this := this.symm
-  exact zero_ne_one this
+  simp at this
 
 /-- The injectivity of `ann` -/
 theorem ann_inj {α : Type} [LinearOrder α] : Function.Injective (@ann α) := by
@@ -197,8 +216,7 @@ theorem ann_inj {α : Type} [LinearOrder α] : Function.Injective (@ann α) := b
   by_contra! hc
   have := (ann_cre _) ▸ h ▸ (ann_cre_ne _ _ hc)
   rw[sub_eq_iff_eq_add,neg_add_cancel] at this
-  replace this := this.symm
-  exact zero_ne_one this
+  simp at this
 
 namespace conjugation
 
