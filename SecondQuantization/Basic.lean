@@ -174,24 +174,13 @@ end
 
 end representation
 
-/-
-noncomputable def to_representation {α : Type} [LinearOrder α] :
-    Operator α →ₐ[ℝ] ((α → Bool → ℝ) →ₗ[ℝ] (α → Bool → ℝ)) :=
-  Ideal.Quotient.liftₐ _ (FreeAlgebra.lift _ representation.φ) (by
-    rw[TwoSidedIdeal.span_le]
-    intro x h
-    simp[TwoSidedIdeal.ker]
-    rcases h with ⟨a, b, h | h | h⟩ | ⟨a, h⟩
-    · simp[h,ψ,representation.φ]
-      ext x i s
-      simp[representation.cre]
-      split_ifs
-
-  )
--/
-
 /-- 0 ≠ 1 for operators -/
-theorem zero_ne_one {α : Type} : (0 : Operator α) ≠ 1 := by sorry
+theorem zero_ne_one {α : Type} [LinearOrder α] : (0 : Operator α) ≠ 1 := by
+  intro h
+  have repr0 : representation.repr (0 : Operator α) = 0 := by simp[representation.repr]
+  have repr1 : representation.repr (1 : Operator α) = 1 := by simp[representation.repr]
+  replace h := repr0 ▸ repr1 ▸ (congrArg representation.repr h)
+  simp at h
 
 /-- The injectivity of `cre` -/
 theorem cre_inj {α : Type} : Function.Injective (@cre α) := by
