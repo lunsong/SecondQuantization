@@ -183,7 +183,7 @@ theorem zero_ne_one {α : Type} [LinearOrder α] : (0 : Operator α) ≠ 1 := by
   simp at h
 
 /-- The injectivity of `cre` -/
-theorem cre_inj {α : Type} : Function.Injective (@cre α) := by
+theorem cre_inj {α : Type} [LinearOrder α] : Function.Injective (@cre α) := by
   intro x y h
   by_contra! hc
   have := (ann_cre _) ▸ h ▸ (ann_cre_ne _ _ hc)
@@ -192,7 +192,7 @@ theorem cre_inj {α : Type} : Function.Injective (@cre α) := by
   exact zero_ne_one this
 
 /-- The injectivity of `ann` -/
-theorem ann_inj {α : Type} : Function.Injective (@ann α) := by
+theorem ann_inj {α : Type} [LinearOrder α] : Function.Injective (@ann α) := by
   intro x y h
   by_contra! hc
   have := (ann_cre _) ▸ h ▸ (ann_cre_ne _ _ hc)
