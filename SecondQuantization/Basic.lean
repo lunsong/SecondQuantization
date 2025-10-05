@@ -108,19 +108,82 @@ namespace representation
 
 noncomputable section
 
-open Classical
-in abbrev commutator_sign {α : Type} [LT α] (s : Finset α) (a : α) : ℝ :=
+abbrev commutator_sign {α : Type} [LinearOrder α] (s : Finset α) (a : α) : ℝ :=
   if Even (Finset.filter (· < a) s).card then 1 else -1
 
-open Classical
-in def cre {α : Type} [LT α] (i : α) : representation α where
+theorem commutator_sign_diff {α : Type} [LinearOrder α] (s : Finset α) (a b : α) :
+    commutator_sign (s \ {a}) b =
+      if a < b ∧ a ∈ s then -commutator_sign s b else commutator_sign s b := by
+  split
+  · dsimp only [commutator_sign]
+    rename_i h
+    have : Finset.filter (· < b) s = (Finset.filter (· < b) (s \ {a})) ∪ {a} := by
+      ext x
+      constructor
+      · simp +contextual [Classical.em]
+      · simp 
+        intro h'
+        rcases h' with h' | h'
+        · simp[h',h]
+        · simp[h']
+    have := congrArg Finset.card this
+    rw[Finset.card_union, show {x ∈ s \ {a} | x < b} ∩ {a} = ∅ by simp,
+       Finset.card_singleton, Finset.card_empty,Nat.sub_zero] at this
+    rw[this]
+    simp only [Nat.even_add_one]
+    by_cases heven : Even {x ∈ s \ {a} | x < b}.card
+    · simp[heven]
+    · simp[heven]
+  · rename_i h
+    dsimp only [commutator_sign]
+    have : Finset.filter (· < b) s = Finset.filter (· < b) (s \ {a}) := by   
+      ext x
+      simp
+      intro  h₁ h₂ h₃
+      exact h ⟨h₃ ▸ h₁, h₃ ▸ h₂⟩
+    rw[this]
+
+theorem commutator_sign_union {α : Type} [LinearOrder α] (s : Finset α) (a b : α) :
+    commutator_sign (s ∪ {a}) b =
+      if a < b ∧ a ∉ s then -commutator_sign s b else commutator_sign s b := by
+  split
+  · rename_i h
+    dsimp only [commutator_sign]
+    have : Finset.filter (· < b) (s ∪ {a}) = (Finset.filter (· < b) s) ∪ {a} := by
+      ext x
+      constructor
+      · simp +contextual
+      · simp
+        intro h'
+        rcases h' with h' | h'
+        · simp[h',h]
+        · simp[h']
+    rw[this,Finset.card_union]
+    have : {x ∈ s | x < b} ∩ {a} = (∅ : Finset α) := by
+      ext x
+      simp
+      intro h₁ _ h₂
+      exact h.2 (h₂ ▸ h₁)
+    rw[this,Finset.card_empty,Finset.card_singleton,Nat.sub_zero]
+    simp only [Nat.even_add_one]
+    by_cases heven : Even ({x ∈ s | x < b}.card)
+    · simp [heven]
+    · simp [heven]
+  · rename_i h
+    dsimp only [commutator_sign]
+    have : Finset.filter (· < b) s = Finset.filter (· < b) (s ∪ {a}) := by   
+      ext x
+      simp at h ⊢
+      exact fun a b ↦ (b ▸ h) a
+    rw[this]
+
+
+def cre {α : Type} [LinearOrder α] (i : α) : representation α where
   toFun x s := 
     if i ∉ s then
       0
-    else if Even (Finset.filter (· < i) s).card then
-      x (s \ {i})
-    else
-      - (x (s \ {i}))
+    else 
+      x (s \ {i}) * commutator_sign s i
   map_add' x y := by
     ext s
     simp
@@ -132,15 +195,12 @@ in def cre {α : Type} [LT α] (i : α) : representation α where
     ext s
     simp
 
-open Classical
-in def ann {α : Type} [LT α] (i : α) : representation α where
+def ann {α : Type} [LinearOrder α] (i : α) : representation α where
   toFun x s := 
     if i ∈ s then
       0
-    else if Even (Finset.filter (· < i) s).card then
-      x (s ∪ {i})
     else
-      - (x (s ∪ {i}))
+      x (s ∪ {i}) * commutator_sign s i
   map_add' x y := by
     ext s
     simp
@@ -152,11 +212,11 @@ in def ann {α : Type} [LT α] (i : α) : representation α where
     ext s
     simp
 
-def repr₀ {α : Type} [LT α] : CreAnn α → representation α
+def repr₀ {α : Type} [LinearOrder α] : CreAnn α → representation α
   | CreAnn.cre i => cre i
   | CreAnn.ann i => ann i
 
-def repr₁ {α : Type} [LT α] : FreeAlgebra ℝ (CreAnn α) →ₐ[ℝ] representation α :=
+def repr₁ {α : Type} [LinearOrder α] : FreeAlgebra ℝ (CreAnn α) →ₐ[ℝ] representation α :=
   FreeAlgebra.lift ℝ repr₀
 
 theorem repr₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators α, repr₁ x = 0 := by
