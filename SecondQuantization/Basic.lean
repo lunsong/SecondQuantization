@@ -102,9 +102,9 @@ theorem ann_cre {α : Type} (x : α) :  ann x * cre x = 1 - (cre x * ann x) := b
   right
   use x
 
-abbrev representation (α : Type) : Type := (Finset α → ℝ) →ₗ[ℝ] (Finset α → ℝ)
+abbrev Representation (α : Type) : Type := (Finset α → ℝ) →ₗ[ℝ] (Finset α → ℝ)
 
-namespace representation
+namespace Representation
 
 noncomputable section
 
@@ -177,7 +177,7 @@ theorem commutator_sign_union {α : Type} [LinearOrder α] (s : Finset α) (a b 
       exact fun a b ↦ (b ▸ h) a
     rw[this]
 
-def cre {α : Type} [LinearOrder α] (i : α) : representation α where
+def cre {α : Type} [LinearOrder α] (i : α) : Representation α where
   toFun x s := 
     if i ∉ s then
       0
@@ -194,7 +194,7 @@ def cre {α : Type} [LinearOrder α] (i : α) : representation α where
     ext s
     simp[commutator_sign]
 
-def ann {α : Type} [LinearOrder α] (i : α) : representation α where
+def ann {α : Type} [LinearOrder α] (i : α) : Representation α where
   toFun x s := 
     if i ∈ s then
       0
@@ -211,18 +211,18 @@ def ann {α : Type} [LinearOrder α] (i : α) : representation α where
     ext s
     simp[commutator_sign]
 
-def repr₀ {α : Type} [LinearOrder α] : CreAnn α → representation α
+def of₀ {α : Type} [LinearOrder α] : CreAnn α → Representation α
   | CreAnn.cre i => cre i
   | CreAnn.ann i => ann i
 
-def repr₁ {α : Type} [LinearOrder α] : FreeAlgebra ℝ (CreAnn α) →ₐ[ℝ] representation α :=
-  FreeAlgebra.lift ℝ repr₀
+def of₁ {α : Type} [LinearOrder α] : FreeAlgebra ℝ (CreAnn α) →ₐ[ℝ] Representation α :=
+  FreeAlgebra.lift ℝ of₀
 
-theorem repr₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators α, repr₁ x = 0 := by
+theorem of₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators α, of₁ x = 0 := by
   intro x h
   rcases h with ⟨a, b, h | h | h⟩ | ⟨a, h⟩
   · ext x s
-    simp[repr₁,h,repr₀,cre,commutator_sign_diff]
+    simp[of₁,h,of₀,cre,commutator_sign_diff]
     by_cases ha : a ∈ s
     · by_cases hb : b ∈ s
       · by_cases h : a < b
@@ -242,7 +242,7 @@ theorem repr₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators
       · simp[ha,hb]
     · simp[ha]
   · ext x s
-    simp[repr₁,h,repr₀,ann,-Finset.union_singleton,-Finset.singleton_union]
+    simp[of₁,h,of₀,ann,-Finset.union_singleton,-Finset.singleton_union]
     by_cases ha : a ∈ s
     · simp[ha]
     by_cases hb : b ∈ s
@@ -260,7 +260,7 @@ theorem repr₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators
     ac_nf
     exact neg_add_cancel _
   · ext x s
-    simp[repr₁,h.2,repr₀,cre,ann,-Finset.union_singleton,-Finset.singleton_union]
+    simp[of₁,h.2,of₀,cre,ann,-Finset.union_singleton,-Finset.singleton_union]
     by_cases ha : a ∈ s
     · simp[ha,h.1]
     by_cases hb : b ∈ s
@@ -285,7 +285,7 @@ theorem repr₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators
       ring
     · simp[ha,hb,show b ≠ a from h.1 ∘ Eq.symm]
   · ext x s
-    simp[repr₁,h,repr₀,cre,ann,-Finset.union_singleton,-Finset.singleton_union]
+    simp[of₁,h,of₀,cre,ann,-Finset.union_singleton,-Finset.singleton_union]
     have : commutator_sign s a * commutator_sign s a = 1 := by
       by_cases h : Even {x ∈ s | x < a}.card
       · simp[commutator_sign,h]
@@ -298,29 +298,29 @@ theorem repr₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators
     simpa
 
 
-def repr {α : Type} [LinearOrder α] : Operator α →ₐ[ℝ] representation α :=
-  Ideal.Quotient.liftₐ _ repr₁ (by
+def of {α : Type} [LinearOrder α] : Operator α →ₐ[ℝ] Representation α :=
+  Ideal.Quotient.liftₐ _ of₁ (by
     intro a h
     rw[←TwoSidedIdeal.mem_ker]
     rw[TwoSidedIdeal.mem_asIdeal] at h
-    suffices final : TwoSidedIdeal.span (commutators α) ≤ TwoSidedIdeal.ker repr₁ from final h
+    suffices final : TwoSidedIdeal.span (commutators α) ≤ TwoSidedIdeal.ker of₁ from final h
     rw[TwoSidedIdeal.span_le]
     intro x h
     simp[TwoSidedIdeal.ker]
-    exact repr₁_commutators x h
+    exact of₁_commutators x h
   )
 
 end
 
-end representation
+end Representation
 
 /-- 1 ≠ 0 for `Operator` -/
 instance instNeZeroOne {α : Type} [LinearOrder α] : NeZero (1 : Operator α) where
   out := by
     intro h
-    have repr0 : representation.repr (0 : Operator α) = 0 := by simp[representation.repr]
-    have repr1 : representation.repr (1 : Operator α) = 1 := by simp[representation.repr]
-    replace h := repr0 ▸ repr1 ▸ (congrArg representation.repr h)
+    have repr0 : Representation.of (0 : Operator α) = 0 := by simp[Representation.of]
+    have repr1 : Representation.of (1 : Operator α) = 1 := by simp[Representation.of]
+    replace h := repr0 ▸ repr1 ▸ (congrArg Representation.of h)
     simp at h
 
 /-- The injectivity of `cre` -/
