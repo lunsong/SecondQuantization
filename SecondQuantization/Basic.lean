@@ -108,7 +108,7 @@ namespace representation
 
 noncomputable section
 
-abbrev commutator_sign {α : Type} [LinearOrder α] (s : Finset α) (a : α) : ℝ :=
+def commutator_sign {α : Type} [LinearOrder α] (s : Finset α) (a : α) : ℝ :=
   if Even (Finset.filter (· < a) s).card then 1 else -1
 
 theorem commutator_sign_diff {α : Type} [LinearOrder α] (s : Finset α) (a b : α) :
@@ -177,7 +177,6 @@ theorem commutator_sign_union {α : Type} [LinearOrder α] (s : Finset α) (a b 
       exact fun a b ↦ (b ▸ h) a
     rw[this]
 
-
 def cre {α : Type} [LinearOrder α] (i : α) : representation α where
   toFun x s := 
     if i ∉ s then
@@ -186,14 +185,14 @@ def cre {α : Type} [LinearOrder α] (i : α) : representation α where
       x (s \ {i}) * commutator_sign s i
   map_add' x y := by
     ext s
-    simp
+    simp[commutator_sign]
     split_ifs
     · rfl
     · rw[add_comm]
     · norm_num
   map_smul' m x := by
     ext s
-    simp
+    simp[commutator_sign]
 
 def ann {α : Type} [LinearOrder α] (i : α) : representation α where
   toFun x s := 
@@ -203,14 +202,14 @@ def ann {α : Type} [LinearOrder α] (i : α) : representation α where
       x (s ∪ {i}) * commutator_sign s i
   map_add' x y := by
     ext s
-    simp
+    simp[commutator_sign]
     split_ifs
     · norm_num
     · rfl
     · rw[add_comm]
   map_smul' m x := by
     ext s
-    simp
+    simp[commutator_sign]
 
 def repr₀ {α : Type} [LinearOrder α] : CreAnn α → representation α
   | CreAnn.cre i => cre i
@@ -220,22 +219,84 @@ def repr₁ {α : Type} [LinearOrder α] : FreeAlgebra ℝ (CreAnn α) →ₐ[�
   FreeAlgebra.lift ℝ repr₀
 
 theorem repr₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators α, repr₁ x = 0 := by
-  have helper (s : Finset α) (a b : α) :
-    (Finset.filter (· < a) (s \ {b})).card = (Finset.filter (· < a) s).card
-  /-
   intro x h
   rcases h with ⟨a, b, h | h | h⟩ | ⟨a, h⟩
   · ext x s
-    simp[h,repr₁,repr₀,cre]
-    by_cases h₁ : a ∈ s
-    · by_cases h₂ : b ∈ s
-      have h₃ : (Finset.filter (· < a) (s \ {a})).card = (Finset.filter (· < a) s).card := by
-        congr 1
+    simp[repr₁,h,repr₀,cre,commutator_sign_diff]
+    by_cases ha : a ∈ s
+    · by_cases hb : b ∈ s
+      · by_cases h : a < b
+        · simp[h,ha,hb,h.ne,show b ≠ a from h.ne ∘ Eq.symm, show ¬(b < a) from h.asymm]
+          conv =>
+            lhs; arg 1
+            rw[sdiff_sdiff_comm, mul_assoc, mul_comm (commutator_sign s b),←mul_assoc]
+          exact neg_add_cancel _
+        by_cases h' : a = b
+        · simp[h']
+        have h'' : b < a := lt_of_le_of_ne (le_of_not_gt h) (h' ∘ Eq.symm)
+        simp[h,h',h'',ha,hb,show b ≠ a from h'∘Eq.symm]
+        conv =>
+          lhs; arg 1
+          rw[sdiff_sdiff_comm, mul_assoc, mul_comm (commutator_sign s b),←mul_assoc]
+        exact add_neg_cancel _
+      · simp[ha,hb]
+    · simp[ha]
+  · ext x s
+    simp[repr₁,h,repr₀,ann,-Finset.union_singleton,-Finset.singleton_union]
+    by_cases ha : a ∈ s
+    · simp[ha]
+    by_cases hb : b ∈ s
+    · simp[hb]
+    by_cases h : a = b
+    · simp[h]
+    by_cases h' : a < b
+    · simp[ha,hb,h,show b ≠ a from h ∘ Eq.symm, commutator_sign_union, -Finset.union_singleton,
+           h',show ¬ b < a from h'.asymm,-Finset.singleton_union]
+      ac_nf
+      exact neg_add_cancel _
+    have h'' : b < a := lt_of_le_of_ne (le_of_not_gt h') (h ∘ Eq.symm)
+    simp[h,ha,hb,show b ≠ a from h ∘ Eq.symm, -Finset.union_singleton,-Finset.singleton_union,
+         commutator_sign_union,h',h'']
+    ac_nf
+    exact neg_add_cancel _
+  · ext x s
+    simp[repr₁,h.2,repr₀,cre,ann,-Finset.union_singleton,-Finset.singleton_union]
+    by_cases ha : a ∈ s
+    · simp[ha,h.1]
+    by_cases hb : b ∈ s
+    · simp[ha,hb,h.1,-Finset.union_singleton,-Finset.singleton_union,
+           commutator_sign_union,commutator_sign_diff]
+      have : (s ∪ {a}) \ {b} = (s \ {b} ∪ {a}) := by
         ext x
-        simp
-        exact fun h _ ↦ h.ne
-      simp[h₁,h₂,h₃]
-  -/
+        constructor
+        · simp +contextual
+        · simp
+          intro h''
+          rcases h'' with h'' | h''
+          · exact ⟨Or.inl h'', h'' ▸ h.1⟩
+          · exact ⟨Or.inr h''.1, h''.2⟩
+      by_cases h' : a < b
+      · simp[h',show ¬ b < a from h'.asymm,-Finset.union_singleton]
+        rw[this]
+        ring
+      have h'' : b < a := lt_of_le_of_ne (le_of_not_gt h') (h.1 ∘ Eq.symm)
+      simp[h',h'',-Finset.union_singleton]
+      rw[this]
+      ring
+    · simp[ha,hb,show b ≠ a from h.1 ∘ Eq.symm]
+  · ext x s
+    simp[repr₁,h,repr₀,cre,ann,-Finset.union_singleton,-Finset.singleton_union]
+    have : commutator_sign s a * commutator_sign s a = 1 := by
+      by_cases h : Even {x ∈ s | x < a}.card
+      · simp[commutator_sign,h]
+      · simp[commutator_sign,h]
+    by_cases ha : a ∈ s
+    · simp[ha,commutator_sign_diff]
+      rw[mul_assoc,this,mul_one,sub_self]
+    simp[ha,-Finset.union_singleton,commutator_sign_union]
+    rw[Finset.union_sdiff_cancel_right,mul_assoc,this,mul_one,sub_self]
+    simpa
+
 
 def repr {α : Type} [LinearOrder α] : Operator α →ₐ[ℝ] representation α :=
   Ideal.Quotient.liftₐ _ repr₁ (by
