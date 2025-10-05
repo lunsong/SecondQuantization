@@ -467,6 +467,12 @@ namespace vacuum_expectation
 
 def mk {α : Type} : Operator α → vacuum_expectation α := Submodule.Quotient.mk
 
+open Classical
+in noncomputable def Representation_expectation {α : Type} : Representation α →ₗ[ℝ] ℝ where
+  toFun x := (x fun s ↦ if s = ∅ then 1 else 0) ∅
+  map_add' x y := by simp
+  map_smul' m x := by simp
+
 end vacuum_expectation
 
 namespace Operator
@@ -476,7 +482,10 @@ abbrev ofReal {α : Type} : ℝ →+* Operator α :=
 
 end Operator
 
-theorem vacuum_expectation_eq_real {α : Type} (x : Operator α) :
-    ∃ a : ℝ, vacuum_expectation.mk (Operator.ofReal a) = vacuum_expectation.mk x := by sorry
+noncomputable def vacExpect {α : Type} [LinearOrder α] : Operator α →ₗ[ℝ] ℝ :=
+  vacuum_expectation.Representation_expectation.comp Representation.of.toLinearMap
+
+theorem vecExpect_sound {α : Type} [LinearOrder α] (x : Operator α) :
+    vacuum_expectation.mk (Operator.ofReal <| vacExpect x) = vacuum_expectation.mk x := by sorry
 
 end Fock
