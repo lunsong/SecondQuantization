@@ -10,6 +10,7 @@ import Mathlib.Algebra.Polynomial.Basic
 import Mathlib.Algebra.Polynomial.AlgebraMap
 import Mathlib.LinearAlgebra.Dimension.Finrank
 import Mathlib.Analysis.InnerProductSpace.Defs
+import Mathlib.Data.Finsupp.Pointwise
 
 /-!
 
@@ -543,10 +544,19 @@ theorem vacExpect_cre_mul {α : Type} [LinearOrder α] (x : Operator α) (a : α
     simp[of,of₁,of₀,Representation.cre]
   simp
 
-#synth Inner ℝ ℝ
+namespace Operator
+
+noncomputable abbrev toFockRepresentation {α : Type} [LinearOrder α] :
+    Operator α →ₗ[ℝ] (Finset α →₀ ℝ) where
+  toFun x := Representation.of x (Finsupp.single ∅ 1)
+  map_add' x y := by simp
+  map_smul' x y := by simp
+
+end Operator
 
 theorem vacExpect_star_mul {α : Type} [LinearOrder α] (x y : Operator α) :
-    vacExpect (star x * y) = 
+  vacExpect (star x * y) = (x.toFockRepresentation * y.toFockRepresentation).sum fun _ a ↦ a := by
+    sorry
 
 
 /-
