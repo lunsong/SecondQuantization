@@ -463,18 +463,6 @@ def co_vacuum_submodule {α : Type} : Submodule ℝ (Operator α) :=
 abbrev vacuum_expectation (α : Type) : Type :=
   Operator α ⧸ (vacuum_submodule ⊔ co_vacuum_submodule)
 
-namespace vacuum_expectation
-
-def mk {α : Type} : Operator α → vacuum_expectation α := Submodule.Quotient.mk
-
-open Classical
-in noncomputable def Representation_expectation {α : Type} : Representation α →ₗ[ℝ] ℝ where
-  toFun x := (x fun s ↦ if s = ∅ then 1 else 0) ∅
-  map_add' x y := by simp
-  map_smul' m x := by simp
-
-end vacuum_expectation
-
 namespace Operator
 
 abbrev ofReal {α : Type} : ℝ →+* Operator α :=
@@ -482,8 +470,65 @@ abbrev ofReal {α : Type} : ℝ →+* Operator α :=
 
 end Operator
 
+namespace vacuum_expectation
+
+def mk {α : Type} : Operator α → vacuum_expectation α := Submodule.Quotient.mk
+
+open Classical
+in noncomputable def expect {α : Type} : Representation α →ₗ[ℝ] ℝ where
+  toFun x := (x fun s ↦ if s = ∅ then 1 else 0) ∅
+  map_add' x y := by simp
+  map_smul' m x := by simp
+
+end vacuum_expectation
+
 noncomputable def vacExpect {α : Type} [LinearOrder α] : Operator α →ₗ[ℝ] ℝ :=
-  vacuum_expectation.Representation_expectation.comp Representation.of.toLinearMap
+  vacuum_expectation.expect.comp Representation.of.toLinearMap
+
+theorem vacExpect_ofReal {α : Type} [LinearOrder α] (x : ℝ) :
+    vacExpect (Operator.ofReal (α := α) x) = x := by
+  simp[vacExpect,vacuum_expectation.expect]
+
+theorem vacExpect_mul_ann {α : Type} [LinearOrder α] (x : Operator α) (a : α) :
+    vacExpect (x * ann a) = 0 := by
+  simp[vacExpect,vacuum_expectation.expect]
+  open Representation in conv =>
+    lhs; arg 2
+    simp[of,of₁,of₀,Representation.ann,←Pi.zero_def]
+  simp only [map_zero, Pi.zero_apply]
+
+theorem vacExpect_cre_mul {α : Type} [LinearOrder α] (x : Operator α) (a : α) :
+    vacExpect (cre a * x) = 0 := by
+  simp[vacExpect,vacuum_expectation.expect]
+  open Representation in conv =>
+    lhs; arg 1
+    simp[of,of₁,of₀,Representation.cre]
+  simp
+
+abbrev FockRepresentation (α : Type) : Type := (Finset α) →₀ ℝ
+
+namespace FockRepresentation
+
+def of₀ {α : Type} [LinearOrder α] (x : Operator α) : (Finset α → ℝ) :=
+  Representation.of x 
+
+/-
+open Classical
+in def of₀ {α : Type} [LinearOrder α] : Operator α →ₗ[ℝ] FockRepresentation α where
+  toFun x := Representation.of x fun s ↦ if s = ∅ then 1 else 0
+  map_add' x y := by simp
+  map_smul' a x := by simp
+-/
+
+end FockRepresentation
+
+
+notation (name := R3) "ℝ³" => Fin 3 → ℝ
+
+noncomputable def fieldOp {α : Type} (basis : α → ℝ³ → ℝ) : ℝ³ → Operator α :=
+  fun x ↦ ∑ᶠ a : α, basis a x • cre a
+
+--def waveFunction {α : Type} (basis : α → ℝ³ → ℝ)
 
 theorem vecExpect_sound {α : Type} [LinearOrder α] (x : Operator α) :
     vacuum_expectation.mk (Operator.ofReal <| vacExpect x) = vacuum_expectation.mk x := by sorry
