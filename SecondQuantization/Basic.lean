@@ -559,15 +559,6 @@ theorem vacExpect_star_mul {α : Type} [LinearOrder α] (x y : Operator α) :
     sorry
 
 
-/-
-open Classical
-in def of₀ {α : Type} [LinearOrder α] : Operator α →ₗ[ℝ] FockRepresentation α where
-  toFun x := Representation.of x fun s ↦ if s = ∅ then 1 else 0
-  map_add' x y := by simp
-  map_smul' a x := by simp
--/
-
-
 notation (name := R3) "ℝ³" => Fin 3 → ℝ
 
 noncomputable def fieldOp {α : Type} (basis : α → ℝ³ → ℝ) : ℝ³ → Operator α :=
