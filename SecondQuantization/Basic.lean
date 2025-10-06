@@ -9,6 +9,7 @@ import Mathlib.Algebra.FreeAlgebra
 import Mathlib.Algebra.Polynomial.Basic
 import Mathlib.Algebra.Polynomial.AlgebraMap
 import Mathlib.LinearAlgebra.Dimension.Finrank
+import Mathlib.Analysis.InnerProductSpace.Defs
 
 /-!
 
@@ -102,7 +103,7 @@ theorem ann_cre {α : Type} (x : α) :  ann x * cre x = 1 - (cre x * ann x) := b
   right
   use x
 
-abbrev Representation (α : Type) : Type := (Finset α → ℝ) →ₗ[ℝ] (Finset α → ℝ)
+abbrev Representation (α : Type) : Type := (Finset α →₀ ℝ) →ₗ[ℝ] (Finset α →₀ ℝ)
 
 namespace Representation
 
@@ -110,6 +111,13 @@ noncomputable section
 
 def commutator_sign {α : Type} [LinearOrder α] (s : Finset α) (a : α) : ℝ :=
   if Even (Finset.filter (· < a) s).card then 1 else -1
+
+theorem commutator_sign_range {α : Type} [LinearOrder α] (s : Finset α) (a : α) :
+    commutator_sign s a = 1 ∨ commutator_sign s a = -1 := by
+  dsimp [commutator_sign]
+  by_cases h : Even {x ∈ s | x < a}.card
+  · simp[h]
+  · simp[h]
 
 theorem commutator_sign_diff {α : Type} [LinearOrder α] (s : Finset α) (a b : α) :
     commutator_sign (s \ {a}) b =
@@ -178,11 +186,25 @@ theorem commutator_sign_union {α : Type} [LinearOrder α] (s : Finset α) (a b 
     rw[this]
 
 def cre {α : Type} [LinearOrder α] (i : α) : Representation α where
-  toFun x s := 
-    if i ∉ s then
-      0
-    else 
-      x (s \ {i}) * commutator_sign s i
+  toFun x := {
+    toFun s := if i ∉ s then 0 else x (s \ {i}) * commutator_sign s i
+    support := Finset.image (fun s ↦ s ∪ {i}) (Finset.filter (i ∉ ·) x.support) 
+    mem_support_toFun s := by
+      simp [-Finset.union_singleton]
+      constructor
+      · intro ⟨s',⟨h₁,h₂⟩⟩
+        split_ands
+        · simp[←h₂]
+        · simp[←h₂,-Finset.union_singleton] 
+          rw[Finset.union_sdiff_cancel_right]
+          · exact h₁.1
+          · simp[h₁.2]
+        rcases commutator_sign_range s i with h | h
+        all_goals simp[h]
+      intro ⟨h₁,h₂,_⟩
+      use s \ {i}
+      simpa[h₂,-Finset.union_singleton]
+  }
   map_add' x y := by
     ext s
     simp[commutator_sign]
@@ -195,11 +217,24 @@ def cre {α : Type} [LinearOrder α] (i : α) : Representation α where
     simp[commutator_sign]
 
 def ann {α : Type} [LinearOrder α] (i : α) : Representation α where
-  toFun x s := 
-    if i ∈ s then
-      0
-    else
-      x (s ∪ {i}) * commutator_sign s i
+  toFun x := {
+    toFun s := if i ∈ s then 0 else x (s ∪ {i}) * commutator_sign s i
+    support := Finset.image (fun s ↦ s \ {i}) (Finset.filter (i ∈ ·) x.support) 
+    mem_support_toFun s := by
+      simp[-Finset.union_singleton]
+      constructor
+      · intro ⟨a, ⟨h₁, h₂⟩, h₃⟩
+        split_ands
+        · simp[←h₃]
+        · rwa[←h₃,Finset.sdiff_singleton_eq_erase,Finset.union_singleton,Finset.insert_erase h₂]
+        · rcases commutator_sign_range s i with h | h
+          all_goals simp[h]
+      · intro ⟨h₁, h₂, _⟩
+        use s ∪ {i}
+        simp[h₂,-Finset.union_singleton]
+        rw[Finset.union_sdiff_cancel_right]
+        simpa
+  }
   map_add' x y := by
     ext s
     simp[commutator_sign]
@@ -476,7 +511,7 @@ def mk {α : Type} : Operator α → vacuum_expectation α := Submodule.Quotient
 
 open Classical
 in noncomputable def expect {α : Type} : Representation α →ₗ[ℝ] ℝ where
-  toFun x := (x fun s ↦ if s = ∅ then 1 else 0) ∅
+  toFun x := x (Finsupp.single ∅ 1) ∅
   map_add' x y := by simp
   map_smul' m x := by simp
 
@@ -493,9 +528,12 @@ theorem vacExpect_mul_ann {α : Type} [LinearOrder α] (x : Operator α) (a : α
     vacExpect (x * ann a) = 0 := by
   simp[vacExpect,vacuum_expectation.expect]
   open Representation in conv =>
-    lhs; arg 2
-    simp[of,of₁,of₀,Representation.ann,←Pi.zero_def]
-  simp only [map_zero, Pi.zero_apply]
+    lhs; arg 1; arg 2
+    simp[of,of₁,of₀]
+  have : ((Representation.ann a) (Finsupp.single ∅ 1)) = 0 := by
+    ext s
+    simp[Representation.ann]
+  simp[this]
 
 theorem vacExpect_cre_mul {α : Type} [LinearOrder α] (x : Operator α) (a : α) :
     vacExpect (cre a * x) = 0 := by
@@ -505,12 +543,11 @@ theorem vacExpect_cre_mul {α : Type} [LinearOrder α] (x : Operator α) (a : α
     simp[of,of₁,of₀,Representation.cre]
   simp
 
-abbrev FockRepresentation (α : Type) : Type := (Finset α) →₀ ℝ
+#synth Inner ℝ ℝ
 
-namespace FockRepresentation
+theorem vacExpect_star_mul {α : Type} [LinearOrder α] (x y : Operator α) :
+    vacExpect (star x * y) = 
 
-theorem finsupp {α : Type} [LinearOrder α] (x : Operator α) (v : Finset α → ℝ) :
-    (Function.support v).Finite → (Function.support 
 
 /-
 open Classical
@@ -519,8 +556,6 @@ in def of₀ {α : Type} [LinearOrder α] : Operator α →ₗ[ℝ] FockRepresen
   map_add' x y := by simp
   map_smul' a x := by simp
 -/
-
-end FockRepresentation
 
 
 notation (name := R3) "ℝ³" => Fin 3 → ℝ
