@@ -509,8 +509,8 @@ abbrev FockRepresentation (α : Type) : Type := (Finset α) →₀ ℝ
 
 namespace FockRepresentation
 
-def of₀ {α : Type} [LinearOrder α] (x : Operator α) : (Finset α → ℝ) :=
-  Representation.of x 
+theorem finsupp {α : Type} [LinearOrder α] (x : Operator α) (v : Finset α → ℝ) :
+    (Function.support v).Finite → (Function.support 
 
 /-
 open Classical
