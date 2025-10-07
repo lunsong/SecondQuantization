@@ -568,7 +568,8 @@ end Operator
 
 namespace Representation
 
-theorem of_star {α : Type} [LinearOrder α] (x : Operator α)  :
+/-- The `Representation` of `star x` is the adjoint of the `Representation` of `x` -/
+theorem of_star {α : Type} [LinearOrder α] (x : Operator α) :
     ∀ s t, of x (Finsupp.single s 1) t = of (star x) (Finsupp.single t 1) s := by
   refine Submodule.Quotient.induction_on _ x ?_
   refine FreeAlgebra.induction _ _ ?_ ?_ ?_ ?_
@@ -666,23 +667,37 @@ theorem of_star {α : Type} [LinearOrder α] (x : Operator α)  :
 
 end Representation
 
-/-- conjugation does not change expectation. TODO: proof needed -/
+/-- conjugation does not change expectation -/
 theorem vacExpect_star {α : Type} [LinearOrder α] (x : Operator α) :
-    vacExpect (star x) = vacExpect x := by sorry
+    vacExpect (star x) = vacExpect x := by
+  simp[vacExpect,vacuum_expectation.expect,←Representation.of_star]
 
-/-- The vacuum expectation of `star x * y` is the inner product of the fock states
-corresponding to x and y. TODO: proof needed -/
-theorem vacExpect_star_mul {α : Type} [LinearOrder α] (x y : Operator α) :
-  vacExpect (star x * y) = (x.toFockRepresentation * y.toFockRepresentation).sum fun _ a ↦ a := by
-    sorry
+/-- The vacuum expectation of `x * star x` is non-negative -/
+theorem vacExpect_mul_star_nonneg {α : Type} [LinearOrder α] (x : Operator α) :
+    0 ≤ vacExpect (x * star x) := by
+  simp[vacExpect,vacuum_expectation.expect]
+  rw[←Finsupp.sum_single ((Representation.of (star x)) (Finsupp.single ∅ 1)),Finsupp.sum,
+    map_sum, Finset.sum_apply']
+  conv =>
+    rhs; arg 2; intro k
+    rw[←Representation.of_star,←mul_one (Representation.of x (Finsupp.single k 1) ∅),
+      ←smul_eq_mul,←Finsupp.smul_single,map_smul,Finsupp.smul_apply,smul_eq_mul,←pow_two]
+  apply Finset.sum_nonneg
+  intro i h
+  positivity
+
 
 notation (name := R3) "ℝ³" => Fin 3 → ℝ
 
 /-- The field operator can be defined after specifying the basis function -/
 noncomputable def fieldOp {α : Type} (basis : α → ℝ³ → ℝ) : ℝ³ → Operator α :=
-  fun x ↦ ∑ᶠ a : α, basis a x • cre a
+  fun r ↦ ∑ᶠ a : α, basis a r • cre a
 
---def waveFunction {α : Type} (basis : α → ℝ³ → ℝ)
+/-- The `waveFunction` is defined for an *Operator* as the vacuum expectation of the field 
+operator multiplies the operator -/
+noncomputable def waveFunction {α : Type} [LinearOrder α] (basis : α → ℝ³ → ℝ) (x : Operator α) :
+    ℝ³ → ℝ :=
+  fun r ↦ vacExpect ((fieldOp basis r) * x)
 
 /-- The soundness theorem for the vacuum expectation. TODO: proof needed -/
 theorem vecExpect_sound {α : Type} [LinearOrder α] (x : Operator α) :
