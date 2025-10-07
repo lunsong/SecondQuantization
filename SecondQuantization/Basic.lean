@@ -11,6 +11,7 @@ import Mathlib.Algebra.Polynomial.AlgebraMap
 import Mathlib.LinearAlgebra.Dimension.Finrank
 import Mathlib.Analysis.InnerProductSpace.Defs
 import Mathlib.Data.Finsupp.Pointwise
+import Mathlib.Analysis.Normed.Lp.WithLp
 
 /-!
 
@@ -497,6 +498,8 @@ def starₗ {α : Type} : Operator α →ₗ[ℝ] Operator α where
       conjugation.mk_eq_mk,conjugation.mk_eq_mk,RingHom.id_apply]
     simp[star,conjugation.conj,conjugation.conj₂]
     rw[←Ideal.Quotient.mkₐ_eq_mk ℝ,map_smul]
+
+theorem starₗ_apply {α : Type} (x : Operator α) : starₗ x = star x := by simp[starₗ]
     
 def co_vacuum_submodule {α : Type} : Submodule ℝ (Operator α) :=
   Submodule.map starₗ vacuum_submodule
@@ -563,6 +566,106 @@ noncomputable abbrev toFockRepresentation {α : Type} [LinearOrder α] :
 
 end Operator
 
+namespace Representation
+
+theorem of_star {α : Type} [LinearOrder α] (x : Operator α)  :
+    ∀ s t, of x (Finsupp.single s 1) t = of (star x) (Finsupp.single t 1) s := by
+  refine Submodule.Quotient.induction_on _ x ?_
+  refine FreeAlgebra.induction _ _ ?_ ?_ ?_ ?_
+  · simp
+    intro r s t
+    rw[←starₗ_apply, Algebra.algebraMap_eq_smul_one]
+    simp[starₗ,Finsupp.single_apply]
+    grind
+  · intro x s t
+    match x with
+    | CreAnn.cre a =>
+      rw[Ideal.Quotient.mk_eq_mk,←Fock.cre, star_cre]
+      simp[of,of₁,of₀,cre,ann,Finsupp.single_apply]
+      by_cases ha : a ∈ t
+      · by_cases hb : a ∈ s
+        · have h₁ : s ≠ t \ {a} := by intro hc; simp [hc] at hb
+          simp[ha,hb,h₁]
+        · by_cases h₁ : t = insert a s
+          · have h₁' : s = t \ {a} := by
+              rw[h₁,Finset.sdiff_singleton_eq_erase,Finset.erase_insert hb]
+            simp only [ha, ↓reduceIte, iff_true_intro h₁', hb, iff_true_intro h₁]
+            rw[h₁',commutator_sign_diff]
+            simp
+          · have h₁' : s ≠ t \ {a} := by
+              intro hc
+              rw[hc, Finset.sdiff_singleton_eq_erase, Finset.insert_erase ha] at h₁
+              exact h₁ rfl
+            simp[ha,hb,h₁,h₁']
+      · by_cases hb : a ∈ s
+        · simp[ha,hb]
+        · simp[ha,hb]
+          intro hc
+          simp[hc] at ha
+    | CreAnn.ann a =>
+      rw[Ideal.Quotient.mk_eq_mk,←Fock.ann, star_ann]
+      simp[of,of₁,of₀,cre,ann,Finsupp.single_apply]
+      by_cases ha : a ∈ t
+      · by_cases hb : a ∉ s
+        · simp[ha,hb]
+        have : t ≠ s \ {a} := by intro hc; simp[hc] at ha
+        simp[ha,this]
+      · by_cases h₁ : s = insert a t
+        · simp[ha,h₁]
+          rw[Finset.sdiff_singleton_eq_erase,Finset.erase_insert ha, ←Finset.union_singleton,
+            commutator_sign_union]
+          simp
+        · simp[ha,h₁]
+          intro h h'
+          rw[h', Finset.sdiff_singleton_eq_erase, Finset.insert_erase h, eq_self, not_true] at h₁
+          exact h₁.elim
+  · intro a b h₁ h₂ s t
+    rw[Ideal.Quotient.mk_eq_mk] at h₁ h₂ ⊢
+    rw[map_mul,star_mul,map_mul,map_mul]
+    generalize (Ideal.Quotient.mk _ a : Operator α) = A at h₁ ⊢
+    generalize (Ideal.Quotient.mk _ b : Operator α) = B at h₂ ⊢
+    rw[Module.End.mul_apply, ←Finsupp.sum_single ((of B) (Finsupp.single s 1)),Finsupp.sum,
+      map_sum,Finset.sum_apply']
+    conv =>
+      lhs; arg 2; intro k
+      rw[←mul_one (((of B) (Finsupp.single s 1)) k), ←smul_eq_mul, ←Finsupp.smul_single,
+        map_smul,Finsupp.smul_apply,h₁,smul_eq_mul]
+    generalize hM : ((of B) (Finsupp.single s 1)).support = M
+    generalize hN : ((of (star A)) (Finsupp.single t 1)).support = N
+    generalize hf :
+        (fun k ↦ ((of B) (Finsupp.single s 1)) k * ((of (star A)) (Finsupp.single t 1)) k) = f
+    have : M.sum f = (M ∩ N).sum f := by
+      refine (Finset.sum_subset Finset.inter_subset_left ?_).symm
+      rw[←hM,←hN,←hf]
+      intro x h₁ h₂
+      rw[Finset.mem_inter,Finsupp.mem_support_iff,Finsupp.mem_support_iff,not_and_or,not_not,
+        not_not] at h₂
+      simpa
+    rw[this]
+    have : N.sum f = (M ∩ N).sum f := by
+      refine (Finset.sum_subset Finset.inter_subset_right ?_).symm
+      rw[←hM,←hN,←hf]
+      intro x h₁ h₂
+      rw[Finset.mem_inter,Finsupp.mem_support_iff,Finsupp.mem_support_iff,not_and_or,not_not,
+        not_not] at h₂
+      simpa
+    rw[←this,←hN,←hf]
+    conv =>
+      rhs
+      rw[Module.End.mul_apply,←Finsupp.sum_single ((of (star A)) (Finsupp.single t 1)),
+        Finsupp.sum,map_sum,Finset.sum_apply']
+      arg 2; intro k
+      rw[←mul_one (((of (star A)) (Finsupp.single t 1)) k),←smul_eq_mul,←Finsupp.smul_single,
+        map_smul,Finsupp.smul_apply,smul_eq_mul,mul_comm,←h₂]
+  · intro a b h₁ h₂ s t
+    specialize h₁ s t
+    specialize h₂ s t
+    rw[Ideal.Quotient.mk_eq_mk] at h₁ h₂ ⊢
+    rw[←starₗ_apply,map_add,map_add,map_add,map_add,LinearMap.add_apply,Finsupp.add_apply,
+      LinearMap.add_apply,Finsupp.add_apply,h₁,h₂,starₗ_apply,starₗ_apply]
+
+end Representation
+
 /-- conjugation does not change expectation. TODO: proof needed -/
 theorem vacExpect_star {α : Type} [LinearOrder α] (x : Operator α) :
     vacExpect (star x) = vacExpect x := by sorry
@@ -586,3 +689,4 @@ theorem vecExpect_sound {α : Type} [LinearOrder α] (x : Operator α) :
     vacuum_expectation.mk (Operator.ofReal <| vacExpect x) = vacuum_expectation.mk x := by sorry
 
 end Fock
+
