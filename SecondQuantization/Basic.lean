@@ -477,12 +477,6 @@ theorem star_ann {α : Type} (x : α) : star (ann x) = cre x := by
 
 def vacuum_ideal {α : Type} : Ideal (Operator α) := Ideal.span (Set.range ann)
 
-end Fock
-
-abbrev Fock (α : Type) : Type := Fock.Operator α ⧸ Fock.vacuum_ideal
-
-namespace Fock
-
 def vacuum_submodule {α : Type} : Submodule ℝ (Operator α) := vacuum_ideal.restrictScalars _
 
 set_option synthInstance.maxHeartbeats 30000 in
@@ -697,6 +691,12 @@ noncomputable def waveFunction {α : Type} [LinearOrder α] (basis : α → ℝ�
 /-- The soundness theorem for the vacuum expectation. TODO: proof needed -/
 theorem vecExpect_sound {α : Type} [LinearOrder α] (x : Operator α) :
     vacuum_expectation.mk (Operator.ofReal <| vacExpect x) = vacuum_expectation.mk x := by sorry
+
+end Fock
+
+abbrev Fock (α : Type) : Type := Fock.Operator α ⧸ Fock.vacuum_ideal
+
+namespace Fock
 
 abbrev FockRepresentation (α : Type) : Type := Finset α →₀ ℝ
 
