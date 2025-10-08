@@ -556,16 +556,6 @@ theorem vacExpect_cre_mul {α : Type} [LinearOrder α] (x : Operator α) (a : α
     simp[of,of₁,of₀,Representation.cre]
   simp
 
-namespace Operator
-
-noncomputable abbrev toFockRepresentation {α : Type} [LinearOrder α] :
-    Operator α →ₗ[ℝ] (Finset α →₀ ℝ) where
-  toFun x := Representation.of x (Finsupp.single ∅ 1)
-  map_add' x y := by simp
-  map_smul' x y := by simp
-
-end Operator
-
 namespace Representation
 
 /-- The `Representation` of `star x` is the adjoint of the `Representation` of `x` -/
@@ -693,15 +683,56 @@ notation (name := R3) "ℝ³" => Fin 3 → ℝ
 noncomputable def fieldOp {α : Type} (basis : α → ℝ³ → ℝ) : ℝ³ → Operator α :=
   fun r ↦ ∑ᶠ a : α, basis a r • cre a
 
+/-- The multi-variate field operator -/
+noncomputable def fieldOp_multi {α : Type} (basis : α → ℝ³ → ℝ) {n : ℕ} :
+    (Fin n → ℝ³) → Operator α :=
+  fun r ↦ (List.ofFn ((fieldOp basis) ∘ r)).prod
+
 /-- The `waveFunction` is defined for an *Operator* as the vacuum expectation of the field 
 operator multiplies the operator -/
-noncomputable def waveFunction {α : Type} [LinearOrder α] (basis : α → ℝ³ → ℝ) (x : Operator α) :
-    ℝ³ → ℝ :=
-  fun r ↦ vacExpect ((fieldOp basis r) * x)
+noncomputable def waveFunction {α : Type} [LinearOrder α] (basis : α → ℝ³ → ℝ) (x : Operator α)
+  {n : ℕ} (r : Fin n → ℝ³) : ℝ :=
+  vacExpect ((fieldOp_multi basis r) * x)
 
 /-- The soundness theorem for the vacuum expectation. TODO: proof needed -/
 theorem vecExpect_sound {α : Type} [LinearOrder α] (x : Operator α) :
     vacuum_expectation.mk (Operator.ofReal <| vacExpect x) = vacuum_expectation.mk x := by sorry
 
-end Fock
+abbrev FockRepresentation (α : Type) : Type := Finset α →₀ ℝ
 
+namespace FockRepresentation
+
+noncomputable instance operatorModule (α : Type) [LinearOrder α] :
+      Module (Operator α) (FockRepresentation α) where
+  smul s x := Representation.of s x
+  one_smul b := by simp[HSMul.hSMul]
+  zero_smul b := by simp[HSMul.hSMul]
+  smul_zero a := by simp[HSMul.hSMul]
+  smul_add a b c := by simp[HSMul.hSMul]
+  add_smul a b c := by simp[HSMul.hSMul]
+  mul_smul a b c := by simp[HSMul.hSMul]
+
+
+end FockRepresentation
+
+namespace Operator
+
+noncomputable abbrev toFockRepresentation {α : Type} [LinearOrder α] :
+    Operator α →ₗ[Operator α] FockRepresentation α where
+  toFun x := Representation.of x (Finsupp.single ∅ 1)
+  map_add' x y := by simp
+  map_smul' x y := by simp[HSMul.hSMul,SMul.smul]
+
+end Operator
+
+noncomputable def toFockRepresentation {α : Type} [LinearOrder α] :
+    Fock α →ₗ[Operator α] FockRepresentation α :=
+  Submodule.liftQ vacuum_ideal Operator.toFockRepresentation (by 
+    rw[vacuum_ideal,Ideal.span_le]
+    intro x hx
+    obtain ⟨a, ha⟩ := Set.mem_range.mp hx
+    ext s
+    open Representation in simp[←ha,of,of₁,of₀,Representation.ann]
+  )
+
+end Fock
