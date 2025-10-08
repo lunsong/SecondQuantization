@@ -735,4 +735,13 @@ noncomputable def toFockRepresentation {α : Type} [LinearOrder α] :
     open Representation in simp[←ha,of,of₁,of₀,Representation.ann]
   )
 
+def vacuum {α : Type} : Fock α := 1
+
+theorem smul_vacuum {α : Type} (x : Operator α) : x • vacuum = vacuum_ideal.mkQ x := by
+  simp[vacuum,HSMul.hSMul,SMul.smul]
+  conv =>
+    lhs; arg 3
+    simp[OfNat.ofNat,One.one]
+  simp[Submodule.Quotient.mk]
+
 end Fock
