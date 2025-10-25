@@ -497,8 +497,7 @@ theorem starₗ_apply {α : Type} (x : Operator α) : starₗ x = star x := by s
     
 namespace Operator
 
-abbrev ofReal {α : Type} : ℝ →+* Operator α :=
-  (Ideal.Quotient.mk _).comp (algebraMap ℝ (FreeAlgebra ℝ (CreAnn α)))
+abbrev ofReal {α : Type} : ℝ →+* Operator α := algebraMap ℝ (Operator α)
 
 end Operator
 
