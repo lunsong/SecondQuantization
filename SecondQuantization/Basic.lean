@@ -252,18 +252,18 @@ def ann {α : Type} [LinearOrder α] (i : α) : Representation α where
     ext s
     simp[commutator_sign]
 
-def of₀ {α : Type} [LinearOrder α] : CreAnn α → Representation α
+def ofAux₀ {α : Type} [LinearOrder α] : CreAnn α → Representation α
   | CreAnn.cre i => cre i
   | CreAnn.ann i => ann i
 
-def of₁ {α : Type} [LinearOrder α] : FreeAlgebra ℝ (CreAnn α) →ₐ[ℝ] Representation α :=
-  FreeAlgebra.lift ℝ of₀
+def ofAux₁ {α : Type} [LinearOrder α] : FreeAlgebra ℝ (CreAnn α) →ₐ[ℝ] Representation α :=
+  FreeAlgebra.lift ℝ ofAux₀
 
-theorem of₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators α, of₁ x = 0 := by
+theorem ofAux₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators α, ofAux₁ x = 0 := by
   intro x h
   rcases h with ⟨a, b, h | h | h⟩ | ⟨a, h⟩
   · ext x s
-    simp[of₁,h,of₀,cre,commutator_sign_diff]
+    simp[ofAux₁,h,ofAux₀,cre,commutator_sign_diff]
     by_cases ha : a ∈ s
     · by_cases hb : b ∈ s
       · by_cases h : a < b
@@ -283,7 +283,7 @@ theorem of₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators �
       · simp[ha,hb]
     · simp[ha]
   · ext x s
-    simp[of₁,h,of₀,ann,-Finset.union_singleton,-Finset.singleton_union]
+    simp[ofAux₁,h,ofAux₀,ann,-Finset.union_singleton,-Finset.singleton_union]
     by_cases ha : a ∈ s
     · simp[ha]
     by_cases hb : b ∈ s
@@ -301,7 +301,7 @@ theorem of₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators �
     ac_nf
     exact neg_add_cancel _
   · ext x s
-    simp[of₁,h.2,of₀,cre,ann,-Finset.union_singleton,-Finset.singleton_union]
+    simp[ofAux₁,h.2,ofAux₀,cre,ann,-Finset.union_singleton,-Finset.singleton_union]
     by_cases ha : a ∈ s
     · simp[ha,h.1]
     by_cases hb : b ∈ s
@@ -326,7 +326,7 @@ theorem of₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators �
       ring
     · simp[ha,hb,show b ≠ a from h.1 ∘ Eq.symm]
   · ext x s
-    simp[of₁,h,of₀,cre,ann,-Finset.union_singleton,-Finset.singleton_union]
+    simp[ofAux₁,h,ofAux₀,cre,ann,-Finset.union_singleton,-Finset.singleton_union]
     have : commutator_sign s a * commutator_sign s a = 1 := by
       by_cases h : Even {x ∈ s | x < a}.card
       · simp[commutator_sign,h]
@@ -341,15 +341,15 @@ theorem of₁_commutators {α : Type} [LinearOrder α] : ∀ x ∈ commutators �
 
 /-- Operators can be represented as a linear map over fock states -/
 def of {α : Type} [LinearOrder α] : Operator α →ₐ[ℝ] Representation α :=
-  Ideal.Quotient.liftₐ _ of₁ (by
+  Ideal.Quotient.liftₐ _ ofAux₁ (by
     intro a h
     rw[←TwoSidedIdeal.mem_ker]
     rw[TwoSidedIdeal.mem_asIdeal] at h
-    suffices final : TwoSidedIdeal.span (commutators α) ≤ TwoSidedIdeal.ker of₁ from final h
+    suffices final : TwoSidedIdeal.span (commutators α) ≤ TwoSidedIdeal.ker ofAux₁ from final h
     rw[TwoSidedIdeal.span_le]
     intro x h
     simp[TwoSidedIdeal.ker]
-    exact of₁_commutators x h
+    exact ofAux₁_commutators x h
   )
 
 end
@@ -383,28 +383,28 @@ theorem ann_inj {α : Type} [LinearOrder α] : Function.Injective (@ann α) := b
 
 namespace conjugation
 
-def conj₀ {α : Type} : CreAnn α → CreAnn α
+def conjAux₀ {α : Type} : CreAnn α → CreAnn α
   | CreAnn.cre x => CreAnn.ann x
   | CreAnn.ann x => CreAnn.cre x
 
-lemma conj₀_involutive {α : Type} : ∀ x : CreAnn α, conj₀ (conj₀ x) = x
-  | CreAnn.cre x => by simp only [conj₀]
-  | CreAnn.ann x => by simp only [conj₀]
+lemma conjAux₀_involutive {α : Type} : ∀ x : CreAnn α, conjAux₀ (conjAux₀ x) = x
+  | CreAnn.cre x => by simp only [conjAux₀]
+  | CreAnn.ann x => by simp only [conjAux₀]
 
-def conj₁ {α : Type} : (FreeAlgebra ℝ (CreAnn α)) →ₐ[ℝ] (FreeAlgebra ℝ (CreAnn α))ᵐᵒᵖ :=
-  FreeAlgebra.lift ℝ (MulOpposite.op ∘ FreeAlgebra.ι ℝ ∘ conj₀)
+def conjAux₁ {α : Type} : (FreeAlgebra ℝ (CreAnn α)) →ₐ[ℝ] (FreeAlgebra ℝ (CreAnn α))ᵐᵒᵖ :=
+  FreeAlgebra.lift ℝ (MulOpposite.op ∘ FreeAlgebra.ι ℝ ∘ conjAux₀)
 
-def conj₂ {α : Type} : (FreeAlgebra ℝ (CreAnn α)) → Operator α :=
-  Ideal.Quotient.mk _ ∘ MulOpposite.unop ∘ conj₁
+def conjAux₂ {α : Type} : (FreeAlgebra ℝ (CreAnn α)) → Operator α :=
+  Ideal.Quotient.mk _ ∘ MulOpposite.unop ∘ conjAux₁
 
 /-- The conjugation of operators -/
 def conj {α : Type} : Operator α → Operator α :=
-  Quotient.lift conj₂ (by
+  Quotient.lift conjAux₂ (by
     intro a b h
     rw[←Quotient.eq_iff_equiv] at h
     have : (Ideal.Quotient.mk _ a : Operator α) = Ideal.Quotient.mk _ b := by
       simpa [←Ideal.Quotient.mk_eq_mk, Submodule.Quotient.mk]
-    simp only [conj₂,Function.comp_apply,Ideal.Quotient.mk_eq_mk_iff_sub_mem] at this ⊢
+    simp only [conjAux₂,Function.comp_apply,Ideal.Quotient.mk_eq_mk_iff_sub_mem] at this ⊢
     rw [←MulOpposite.unop_sub, ←map_sub]
     rw [TwoSidedIdeal.mem_asIdeal] at this
     generalize a - b = x at this ⊢
@@ -414,11 +414,11 @@ def conj {α : Type} : Operator α → Operator α :=
       apply TwoSidedIdeal.subset_span
       rcases h with h | h
       · rcases h with ⟨a, b, h | h | h⟩
-        · simp[h,conj₁,conj₀]; left; use b,a; right; left; rfl
-        · simp[h,conj₁,conj₀]; left; use b,a; left; rfl
-        · simp[h.2,conj₁,conj₀]; left; use b,a; right; right; exact ⟨h.1.symm, rfl⟩
+        · simp[h,conjAux₁,conjAux₀]; left; use b,a; right; left; rfl
+        · simp[h,conjAux₁,conjAux₀]; left; use b,a; left; rfl
+        · simp[h.2,conjAux₁,conjAux₀]; left; use b,a; right; right; exact ⟨h.1.symm, rfl⟩
       obtain ⟨a, h⟩ := h
-      simp[h, conj₁, conj₀]; right; use a
+      simp[h, conjAux₁, conjAux₀]; right; use a
     · simp only [map_zero, MulOpposite.unop_zero, zero_mem]
     · intro x y _ _ h₁ h₂
       rw[map_add,MulOpposite.unop_add]
@@ -444,36 +444,36 @@ instance operatorStarRing (α : Type) : StarRing (Operator α) where
     refine Submodule.Quotient.induction_on _ x ?_
     intro x
     rw[Submodule.Quotient.mk]
-    simp[conj,conj₂,←Ideal.Quotient.mk_eq_mk,Submodule.Quotient.mk]
+    simp[conj,conjAux₂,←Ideal.Quotient.mk_eq_mk,Submodule.Quotient.mk]
     congr 1
     refine FreeAlgebra.induction _ _ ?_ ?_ ?_ ?_ x
     · simp
-    · simp[conj₁,conj₀_involutive]
+    · simp[conjAux₁,conjAux₀_involutive]
     · simp +contextual
     · simp +contextual
   star_add := by
     apply Quotient.ind₂
     intro a b
     rw[←mk_eq_mk,←mk_eq_mk,←map_add,mk_eq_mk,mk_eq_mk, mk_eq_mk]
-    simp [conj,Quotient.lift_mk,conj₂]
+    simp [conj,Quotient.lift_mk,conjAux₂]
   star_mul := by
     apply Quotient.ind₂
     intro a b
     rw [←mk_eq_mk,←mk_eq_mk,←map_mul,mk_eq_mk,mk_eq_mk, mk_eq_mk,
       conj,Quotient.lift_mk,Quotient.lift_mk,Quotient.lift_mk]
-    simp[conj₂]
+    simp[conjAux₂]
 
 end conjugation
 
 open conjugation in
 /-- the conjugation of `cre x` is `ann x` -/
 theorem star_cre {α : Type} (x : α) : star (cre x) = ann x := by
-  simp[star,conj,mk_eq_mk,conj₂,conj₁,conj₀]
+  simp[star,conj,mk_eq_mk,conjAux₂,conjAux₁,conjAux₀]
 
 open conjugation in
 /-- the conjugation of `ann x` is `cre x` -/
 theorem star_ann {α : Type} (x : α) : star (ann x) = cre x := by
-  simp[star,conj,mk_eq_mk,conj₂,conj₁,conj₀]
+  simp[star,conj,mk_eq_mk,conjAux₂,conjAux₁,conjAux₀]
 
 def vacuum_ideal {α : Type} : Ideal (Operator α) := Ideal.span (Set.range ann)
 
@@ -490,17 +490,11 @@ def starₗ {α : Type} : Operator α →ₗ[ℝ] Operator α where
     intro a
     rw[←conjugation.mk_eq_mk,←Ideal.Quotient.mkₐ_eq_mk ℝ, ←map_smul,Ideal.Quotient.mkₐ_eq_mk,
       conjugation.mk_eq_mk,conjugation.mk_eq_mk,RingHom.id_apply]
-    simp[star,conjugation.conj,conjugation.conj₂]
+    simp[star,conjugation.conj,conjugation.conjAux₂]
     rw[←Ideal.Quotient.mkₐ_eq_mk ℝ,map_smul]
 
 theorem starₗ_apply {α : Type} (x : Operator α) : starₗ x = star x := by simp[starₗ]
     
-def co_vacuum_submodule {α : Type} : Submodule ℝ (Operator α) :=
-  Submodule.map starₗ vacuum_submodule
-
-abbrev vacuum_expectation (α : Type) : Type :=
-  Operator α ⧸ (vacuum_submodule ⊔ co_vacuum_submodule)
-
 namespace Operator
 
 abbrev ofReal {α : Type} : ℝ →+* Operator α :=
@@ -508,9 +502,7 @@ abbrev ofReal {α : Type} : ℝ →+* Operator α :=
 
 end Operator
 
-namespace vacuum_expectation
-
-def mk {α : Type} : Operator α → vacuum_expectation α := Submodule.Quotient.mk
+namespace Representation
 
 open Classical
 in noncomputable def expect {α : Type} : Representation α →ₗ[ℝ] ℝ where
@@ -518,24 +510,24 @@ in noncomputable def expect {α : Type} : Representation α →ₗ[ℝ] ℝ wher
   map_add' x y := by simp
   map_smul' m x := by simp
 
-end vacuum_expectation
+end Representation
 
 /-- The vacuum expectation of an operator -/
 noncomputable def vacExpect {α : Type} [LinearOrder α] : Operator α →ₗ[ℝ] ℝ :=
-  vacuum_expectation.expect.comp Representation.of.toLinearMap
+  Representation.expect.comp Representation.of.toLinearMap
 
 /-- The vacuum expectation of a scalar is itself -/
 theorem vacExpect_ofReal {α : Type} [LinearOrder α] (x : ℝ) :
     vacExpect (Operator.ofReal (α := α) x) = x := by
-  simp[vacExpect,vacuum_expectation.expect]
+  simp[vacExpect,Representation.expect]
 
 /-- The vacuum expectation of any operator starting with an annihilation operator is 0 -/
 theorem vacExpect_mul_ann {α : Type} [LinearOrder α] (x : Operator α) (a : α) :
     vacExpect (x * ann a) = 0 := by
-  simp[vacExpect,vacuum_expectation.expect]
+  simp[vacExpect,Representation.expect]
   open Representation in conv =>
     lhs; arg 1; arg 2
-    simp[of,of₁,of₀]
+    simp[of,ofAux₁,ofAux₀]
   have : ((Representation.ann a) (Finsupp.single ∅ 1)) = 0 := by
     ext s
     simp[Representation.ann]
@@ -544,10 +536,10 @@ theorem vacExpect_mul_ann {α : Type} [LinearOrder α] (x : Operator α) (a : α
 /-- The vacuum expectation of any operator ending with an creation operator is 0 -/
 theorem vacExpect_cre_mul {α : Type} [LinearOrder α] (x : Operator α) (a : α) :
     vacExpect (cre a * x) = 0 := by
-  simp[vacExpect,vacuum_expectation.expect]
+  simp[vacExpect,Representation.expect]
   open Representation in conv =>
     lhs; arg 1
-    simp[of,of₁,of₀,Representation.cre]
+    simp[of,ofAux₁,ofAux₀,Representation.cre]
   simp
 
 namespace Representation
@@ -566,7 +558,7 @@ theorem of_star {α : Type} [LinearOrder α] (x : Operator α) :
     match x with
     | CreAnn.cre a =>
       rw[Ideal.Quotient.mk_eq_mk,←Fock.cre, star_cre]
-      simp[of,of₁,of₀,cre,ann,Finsupp.single_apply]
+      simp[of,ofAux₁,ofAux₀,cre,ann,Finsupp.single_apply]
       by_cases ha : a ∈ t
       · by_cases hb : a ∈ s
         · have h₁ : s ≠ t \ {a} := by intro hc; simp [hc] at hb
@@ -589,7 +581,7 @@ theorem of_star {α : Type} [LinearOrder α] (x : Operator α) :
           simp[hc] at ha
     | CreAnn.ann a =>
       rw[Ideal.Quotient.mk_eq_mk,←Fock.ann, star_ann]
-      simp[of,of₁,of₀,cre,ann,Finsupp.single_apply]
+      simp[of,ofAux₁,ofAux₀,cre,ann,Finsupp.single_apply]
       by_cases ha : a ∈ t
       · by_cases hb : a ∉ s
         · simp[ha,hb]
@@ -654,12 +646,12 @@ end Representation
 /-- conjugation does not change expectation -/
 theorem vacExpect_star {α : Type} [LinearOrder α] (x : Operator α) :
     vacExpect (star x) = vacExpect x := by
-  simp[vacExpect,vacuum_expectation.expect,←Representation.of_star]
+  simp[vacExpect,Representation.expect,←Representation.of_star]
 
 /-- The vacuum expectation of `x * star x` is non-negative -/
 theorem vacExpect_mul_star_nonneg {α : Type} [LinearOrder α] (x : Operator α) :
     0 ≤ vacExpect (x * star x) := by
-  simp[vacExpect,vacuum_expectation.expect]
+  simp[vacExpect,Representation.expect]
   rw[←Finsupp.sum_single ((Representation.of (star x)) (Finsupp.single ∅ 1)),Finsupp.sum,
     map_sum, Finset.sum_apply']
   conv =>
@@ -688,10 +680,6 @@ noncomputable def waveFunction {α : Type} [LinearOrder α] (basis : α → ℝ�
   {n : ℕ} (r : Fin n → ℝ³) : ℝ :=
   vacExpect ((fieldOp_multi basis r) * x)
 
-/-- The soundness theorem for the vacuum expectation. TODO: proof needed -/
-theorem vecExpect_sound {α : Type} [LinearOrder α] (x : Operator α) :
-    vacuum_expectation.mk (Operator.ofReal <| vacExpect x) = vacuum_expectation.mk x := by sorry
-
 end Fock
 
 abbrev Fock (α : Type) : Type := Fock.Operator α ⧸ Fock.vacuum_ideal
@@ -712,28 +700,23 @@ noncomputable instance operatorModule (α : Type) [LinearOrder α] :
   add_smul a b c := by simp[HSMul.hSMul]
   mul_smul a b c := by simp[HSMul.hSMul]
 
-
-end FockRepresentation
-
-namespace Operator
-
-noncomputable abbrev toFockRepresentation {α : Type} [LinearOrder α] :
+noncomputable abbrev ofOperator {α : Type} [LinearOrder α] :
     Operator α →ₗ[Operator α] FockRepresentation α where
   toFun x := Representation.of x (Finsupp.single ∅ 1)
   map_add' x y := by simp
   map_smul' x y := by simp[HSMul.hSMul,SMul.smul]
 
-end Operator
-
-noncomputable def toFockRepresentation {α : Type} [LinearOrder α] :
+noncomputable def of {α : Type} [LinearOrder α] :
     Fock α →ₗ[Operator α] FockRepresentation α :=
-  Submodule.liftQ vacuum_ideal Operator.toFockRepresentation (by 
+  Submodule.liftQ vacuum_ideal FockRepresentation.ofOperator (by 
     rw[vacuum_ideal,Ideal.span_le]
     intro x hx
     obtain ⟨a, ha⟩ := Set.mem_range.mp hx
     ext s
-    open Representation in simp[←ha,of,of₁,of₀,Representation.ann]
+    open Representation in simp[←ha,Representation.of,ofAux₁,ofAux₀,Representation.ann]
   )
+
+end FockRepresentation
 
 def vacuum {α : Type} : Fock α := 1
 
@@ -743,5 +726,23 @@ theorem smul_vacuum {α : Type} (x : Operator α) : x • vacuum = vacuum_ideal.
     lhs; arg 3
     simp[OfNat.ofNat,One.one]
   simp[Submodule.Quotient.mk]
+  congr
+  change x * 1 = x
+  simp only [mul_one]
+
+noncomputable instance fockInner (α : Type) [LinearOrder α] : Inner ℝ (Fock α) where
+  inner x y := (FockRepresentation.of x * FockRepresentation.of y).sum fun _i a ↦ a
+
+open scoped RealInnerProductSpace
+
+/-
+theorem inner_eq_vacExpect (α : Type) [LinearOrder α] (a b : Fock α) (x : Operator α) :
+    ⟪a, x • b⟫  = ⟪star x • a, b⟫ := by
+  conv_rhs =>
+    simp only [inner, map_smul]
+    simp only [HSMul.hSMul,SMul.smul]
+    rw[Finsupp.sum, ←Finsupp.sum_single (FockRepresentation.of b)]
+-/
+
 
 end Fock
