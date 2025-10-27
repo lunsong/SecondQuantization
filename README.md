@@ -1,6 +1,6 @@
 # Second Quantization in Lean4
 
-This project is a formalization of the method of [second quantization](https://lean-lang.org/) in [Lean4](https://lean-lang.org/). The documentation is at [here](http://8.148.4.14/SecondQuantization/Basic.html")
+This project is a formalization of the method of [second quantization](https://lean-lang.org/) in [Lean4](https://lean-lang.org/). The documentation is at [here](http://8.148.4.14/lean/SecondQuantization/Basic.html)
 
 ## 🎯 Aim of the project
 
@@ -9,7 +9,7 @@ The primary goal of this project is to build a rigorous, formalized mathematical
 ## 🚩 TODOs
 
 - [x] creation and annihilation operators and their basic properties
-- [ ] vacuum expectation and its properties
+- [x] vacuum expectation and its properties
 - [ ] Hatree-Fock method
 - [ ] FCI method
 - [ ] CCSD method
