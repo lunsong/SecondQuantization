@@ -160,9 +160,175 @@ theorem cre_ann {x y : α} : cre R x * ann R y + ann R y * cre R x = if x = y th
           simp only [hA, hB, hC, hD, ↓reduceIte, neg_neg] <;>
           ring
     · simp [hx]
-    
-      
 
+theorem cre_cre {x y : α} : cre R x * cre R y + cre R y * cre R x = 0 := by
+  ext φ s
+  simp only [cre, LinearMap.add_apply, Module.End.mul_apply, LinearMap.coe_mk,
+    AddHom.coe_mk, Pi.add_apply, LinearMap.zero_apply, Pi.zero_apply]
+  by_cases hxy : x = y
+  · cases hxy
+    by_cases hx : x ∈ s
+    · have : x ∉ s.erase x := Finset.notMem_erase x s
+      simp [hx, this]
+    · simp [hx]
+  · by_cases hx : x ∈ s
+    · by_cases hy : y ∈ s
+      · have hy_in_erase_x : y ∈ s.erase x := Finset.mem_erase.mpr ⟨Ne.symm hxy, hy⟩
+        have hx_in_erase_y : x ∈ s.erase y := Finset.mem_erase.mpr ⟨hxy, hx⟩
+        have herase_swap : (s.erase x).erase y = (s.erase y).erase x := by
+          ext a; simp only [Finset.mem_erase]; tauto
+        rw [if_pos hx, if_pos hy, if_pos hy_in_erase_x, if_pos hx_in_erase_y, herase_swap]
+        set A : Finset α := {z ∈ s | z < x} with hA_def
+        set B : Finset α := {z ∈ s.erase x | z < y} with hB_def
+        set C : Finset α := {z ∈ s | z < y} with hC_def
+        set D : Finset α := {z ∈ s.erase y | z < x} with hD_def
+        have key : (Even A.card ↔ Even B.card) ↔ ¬ (Even C.card ↔ Even D.card) := by
+          rcases lt_or_gt_of_ne hxy with hxy' | hxy'
+          · -- x < y: B = C.erase x with x ∈ C, D = A
+            have hBC : B = C.erase x := by
+              ext a
+              simp only [B, C, Finset.mem_filter, Finset.mem_erase]
+              constructor
+              · rintro ⟨⟨h₁, h₂⟩, h₃⟩; exact ⟨h₁, h₂, h₃⟩
+              · rintro ⟨h₁, h₂, h₃⟩; exact ⟨⟨h₁, h₂⟩, h₃⟩
+            have hDA : D = A := by
+              ext a
+              simp only [D, A, Finset.mem_filter, Finset.mem_erase]
+              constructor
+              · rintro ⟨⟨_, h₂⟩, h₃⟩; exact ⟨h₂, h₃⟩
+              · rintro ⟨h₁, h₂⟩
+                refine ⟨⟨?_, h₁⟩, h₂⟩
+                rintro rfl; exact absurd h₂ (not_lt_of_gt hxy')
+            have hx_in_C : x ∈ C := by
+              simp only [C, Finset.mem_filter]; exact ⟨hx, hxy'⟩
+            rw [hBC, hDA, Finset.card_erase_of_mem hx_in_C]
+            have hCne : C.card ≠ 0 := by
+              intro h0
+              rw [Finset.card_eq_zero] at h0
+              rw [h0] at hx_in_C
+              exact (Finset.notMem_empty _) hx_in_C
+            rw [Nat.even_sub (Nat.one_le_iff_ne_zero.mpr hCne)]
+            have : ¬ Even 1 := by decide
+            tauto
+          · -- y < x: B = C, D = A.erase y with y ∈ A
+            have hBC : B = C := by
+              ext a
+              simp only [B, C, Finset.mem_filter, Finset.mem_erase]
+              constructor
+              · rintro ⟨⟨_, h₂⟩, h₃⟩; exact ⟨h₂, h₃⟩
+              · rintro ⟨h₁, h₂⟩
+                refine ⟨⟨?_, h₁⟩, h₂⟩
+                rintro rfl; exact absurd h₂ (not_lt_of_gt hxy')
+            have hDA : D = A.erase y := by
+              ext a
+              simp only [D, A, Finset.mem_filter, Finset.mem_erase]
+              constructor
+              · rintro ⟨⟨h₁, h₂⟩, h₃⟩; exact ⟨h₁, h₂, h₃⟩
+              · rintro ⟨h₁, h₂, h₃⟩; exact ⟨⟨h₁, h₂⟩, h₃⟩
+            have hy_in_A : y ∈ A := by
+              simp only [A, Finset.mem_filter]; exact ⟨hy, hxy'⟩
+            rw [hBC, hDA, Finset.card_erase_of_mem hy_in_A]
+            have hAne : A.card ≠ 0 := by
+              intro h0
+              rw [Finset.card_eq_zero] at h0
+              rw [h0] at hy_in_A
+              exact (Finset.notMem_empty _) hy_in_A
+            rw [Nat.even_sub (Nat.one_le_iff_ne_zero.mpr hAne)]
+            have : ¬ Even 1 := by decide
+            tauto
+        by_cases hA : Even A.card <;> by_cases hB : Even B.card <;>
+          by_cases hC : Even C.card <;> by_cases hD : Even D.card <;>
+          (try { exfalso; tauto }) <;>
+          simp only [hA, hB, hC, hD, ↓reduceIte, neg_neg] <;>
+          ring
+      · have hy_not_in_erase_x : y ∉ s.erase x :=
+          fun h' => hy (Finset.mem_of_mem_erase h')
+        rw [if_pos hx, if_neg hy, if_neg hy_not_in_erase_x]
+        simp
+    · by_cases hy : y ∈ s
+      · have hx_not_in_erase_y : x ∉ s.erase y :=
+          fun h' => hx (Finset.mem_of_mem_erase h')
+        rw [if_neg hx, if_pos hy, if_neg hx_not_in_erase_y]
+        simp
+      · simp [hx, hy]
+
+theorem ann_ann {x y : α} : ann R x * ann R y + ann R y * ann R x = 0 := by
+  ext φ s
+  simp only [ann, LinearMap.add_apply, Module.End.mul_apply, LinearMap.coe_mk,
+    AddHom.coe_mk, Pi.add_apply, LinearMap.zero_apply, Pi.zero_apply]
+  by_cases hxy : x = y
+  · cases hxy
+    by_cases hx : x ∈ s
+    · simp [hx]
+    · have : x ∈ insert x s := Finset.mem_insert_self x s
+      simp [hx, this]
+  · by_cases hx : x ∈ s
+    · simp [hx]
+    · by_cases hy : y ∈ s
+      · simp [hy]
+      · have hy_not_in_insert_x : y ∉ insert x s := by
+          simp only [Finset.mem_insert, not_or]; exact ⟨Ne.symm hxy, hy⟩
+        have hx_not_in_insert_y : x ∉ insert y s := by
+          simp only [Finset.mem_insert, not_or]; exact ⟨hxy, hx⟩
+        rw [if_pos hx, if_pos hy, if_pos hy_not_in_insert_x, if_pos hx_not_in_insert_y]
+        rw [show insert y (insert x s) = insert x (insert y s) from Finset.insert_comm y x s]
+        set A : Finset α := {z ∈ s | z < x} with hA_def
+        set B : Finset α := {z ∈ insert x s | z < y} with hB_def
+        set C : Finset α := {z ∈ s | z < y} with hC_def
+        set D : Finset α := {z ∈ insert y s | z < x} with hD_def
+        have key : (Even A.card ↔ Even B.card) ↔ ¬ (Even C.card ↔ Even D.card) := by
+          rcases lt_or_gt_of_ne hxy with hxy' | hxy'
+          · -- x < y: B = insert x C with x ∉ C, D = A
+            have hBC : B = insert x C := by
+              ext a
+              simp only [B, C, Finset.mem_filter, Finset.mem_insert]
+              constructor
+              · rintro ⟨h₁ | h₁, h₂⟩
+                · exact Or.inl h₁
+                · exact Or.inr ⟨h₁, h₂⟩
+              · rintro (rfl | ⟨h₁, h₂⟩)
+                · exact ⟨Or.inl rfl, hxy'⟩
+                · exact ⟨Or.inr h₁, h₂⟩
+            have hDA : D = A := by
+              ext a
+              simp only [D, A, Finset.mem_filter, Finset.mem_insert]
+              constructor
+              · rintro ⟨h₁ | h₁, h₂⟩
+                · exact absurd (h₁ ▸ h₂) (not_lt_of_gt hxy')
+                · exact ⟨h₁, h₂⟩
+              · rintro ⟨h₁, h₂⟩; exact ⟨Or.inr h₁, h₂⟩
+            have hx_not_in_C : x ∉ C := by
+              simp only [C, Finset.mem_filter, not_and]; exact fun h' _ => hx h'
+            rw [hBC, hDA, Finset.card_insert_of_notMem hx_not_in_C, Nat.even_add_one]
+            tauto
+          · -- y < x: B = C, D = insert y A with y ∉ A
+            have hBC : B = C := by
+              ext a
+              simp only [B, C, Finset.mem_filter, Finset.mem_insert]
+              constructor
+              · rintro ⟨h₁ | h₁, h₂⟩
+                · exact absurd (h₁ ▸ h₂) (not_lt_of_gt hxy')
+                · exact ⟨h₁, h₂⟩
+              · rintro ⟨h₁, h₂⟩; exact ⟨Or.inr h₁, h₂⟩
+            have hDA : D = insert y A := by
+              ext a
+              simp only [D, A, Finset.mem_filter, Finset.mem_insert]
+              constructor
+              · rintro ⟨h₁ | h₁, h₂⟩
+                · exact Or.inl h₁
+                · exact Or.inr ⟨h₁, h₂⟩
+              · rintro (rfl | ⟨h₁, h₂⟩)
+                · exact ⟨Or.inl rfl, hxy'⟩
+                · exact ⟨Or.inr h₁, h₂⟩
+            have hy_not_in_A : y ∉ A := by
+              simp only [A, Finset.mem_filter, not_and]; exact fun h' _ => hy h'
+            rw [hBC, hDA, Finset.card_insert_of_notMem hy_not_in_A, Nat.even_add_one]
+            tauto
+        by_cases hA : Even A.card <;> by_cases hB : Even B.card <;>
+          by_cases hC : Even C.card <;> by_cases hD : Even D.card <;>
+          (try { exfalso; tauto }) <;>
+          simp only [hA, hB, hC, hD, ↓reduceIte, neg_neg] <;>
+          ring
 
 end Fermion
 
