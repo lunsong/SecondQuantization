@@ -6,18 +6,9 @@ variable (α R : Type) [CommRing R]
 
 abbrev Operator := (Finset α → R) →ₗ[R] (Finset α → R)
 
-@[ext]
-theorem Operator.ext {A B : Operator α R} : (∀ φ, A φ = B φ) → A = B := LinearMap.ext
-
-instance Operator.semiring : Ring (Operator α R) :=
-  inferInstanceAs (Ring ((Finset α → R) →ₗ[R] (Finset α → R)))
-
---instance Operator.algebra : Algebra R (Operator α R) :=
---  inferInstanceAs (Algebra R ((Finset α → R) →ₗ[R] (Finset α → R)))
+namespace Fermion
 
 variable {α} [LinearOrder α]
-
-namespace Fermion
 
 def cre (x : α) : Operator α R where
   toFun φ s := 
