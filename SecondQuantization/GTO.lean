@@ -79,6 +79,41 @@ noncomputable def coreHamiltonian {ι : Type} [Fintype ι]
     (Z : ι → ℝ) (C : ι → ℝ³) (φ ψ : ℝ³ → ℝ) : ℝ :=
   kinetic φ ψ + ∑ k : ι, (- Z k) * nuclearAttraction (C k) φ ψ
 
+/-! ## Symmetry lemmas -/
+
+/-- The overlap integral is symmetric in its two arguments. -/
+theorem overlap_comm (φ ψ : ℝ³ → ℝ) : overlap φ ψ = overlap ψ φ := by
+  unfold overlap
+  simp_rw [mul_comm]
+
+/-- The nuclear attraction integral is symmetric in `φ` and `ψ`. -/
+theorem nuclearAttraction_comm (C : ℝ³) (φ ψ : ℝ³ → ℝ) :
+    nuclearAttraction C φ ψ = nuclearAttraction C ψ φ := by
+  unfold nuclearAttraction
+  congr 1
+  funext r
+  ring
+
+/-- The electron repulsion integral is symmetric in `φ₁` and `φ₂`. -/
+theorem electronRepulsion_swap_12 (φ₁ φ₂ φ₃ φ₄ : ℝ³ → ℝ) :
+    electronRepulsion φ₁ φ₂ φ₃ φ₄ = electronRepulsion φ₂ φ₁ φ₃ φ₄ := by
+  unfold electronRepulsion
+  congr 1
+  funext r₁
+  congr 1
+  funext r₂
+  ring
+
+/-- The electron repulsion integral is symmetric in `φ₃` and `φ₄`. -/
+theorem electronRepulsion_swap_34 (φ₁ φ₂ φ₃ φ₄ : ℝ³ → ℝ) :
+    electronRepulsion φ₁ φ₂ φ₃ φ₄ = electronRepulsion φ₁ φ₂ φ₄ φ₃ := by
+  unfold electronRepulsion
+  congr 1
+  funext r₁
+  congr 1
+  funext r₂
+  ring
+
 /-! ## Explicit integral evaluations -/
 
 /-- The overlap of two s-type primitive GTOs sharing the same center is
@@ -123,5 +158,231 @@ theorem overlap_primitiveGTO_s_same_center (α β : ℝ) (R : ℝ³) :
   rw [integral_fintype_prod_volume_eq_pow (fun x : ℝ => Real.exp (-(α + β) * x ^ 2)),
       integral_gaussian]
   simp [Fintype.card_fin]
+
+/-- **Gaussian product theorem.** The overlap of two s-type primitive GTOs centered at
+different points `R₁`, `R₂` with exponents `α`, `β` (with `α + β ≠ 0`) is
+  `(√(π / (α + β)))^3 · exp(-αβ/(α+β) · ‖R₁ - R₂‖²)`. -/
+theorem overlap_primitiveGTO_s_diff_center (α β : ℝ) (hαβ : α + β ≠ 0)
+    (R₁ R₂ : ℝ³) :
+    overlap (primitiveGTO_s α R₁) (primitiveGTO_s β R₂) =
+      (Real.sqrt (π / (α + β))) ^ 3 *
+        Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) := by
+  -- Define the product center P = (α·R₁ + β·R₂) / (α+β)
+  set P : ℝ³ := fun i => (α * R₁ i + β * R₂ i) / (α + β) with hP
+  -- Complete the square (sign-flipped form): -α(x-a)² - β(x-b)²
+  --   = -αβ/(α+β)·(a-b)² - (α+β)·(x - (αa+βb)/(α+β))²
+  have hsq : ∀ x a b : ℝ,
+      -α * (x - a) ^ 2 + -β * (x - b) ^ 2
+        = -(α * β) / (α + β) * (a - b) ^ 2
+            + -(α + β) * (x - (α * a + β * b) / (α + β)) ^ 2 := by
+    intro x a b
+    field_simp
+    ring
+  -- Rewrite φα(r) * φβ(r) = exp(-αβ/(α+β)·‖R₁-R₂‖²) * exp(-(α+β)·∑(r-P)²)
+  have hsimp : ∀ r : ℝ³,
+      primitiveGTO_s α R₁ r * primitiveGTO_s β R₂ r =
+        Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+          Real.exp (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+    intro r
+    simp only [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero,
+      Finset.prod_const_one, one_mul]
+    rw [← Real.exp_add, ← Real.exp_add]
+    congr 1
+    have step : ∀ i : Fin 3,
+        -α * (r i - R₁ i) ^ 2 + -β * (r i - R₂ i) ^ 2
+          = -(α * β) / (α + β) * (R₁ i - R₂ i) ^ 2
+              + -(α + β) * (r i - P i) ^ 2 := by
+      intro i
+      have hPi : P i = (α * R₁ i + β * R₂ i) / (α + β) := rfl
+      rw [hPi]
+      exact hsq (r i) (R₁ i) (R₂ i)
+    calc -α * ∑ i : Fin 3, (r i - R₁ i) ^ 2
+            + -β * ∑ i : Fin 3, (r i - R₂ i) ^ 2
+        = ∑ i : Fin 3, (-α * (r i - R₁ i) ^ 2 + -β * (r i - R₂ i) ^ 2) := by
+            rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+      _ = ∑ i : Fin 3, (-(α * β) / (α + β) * (R₁ i - R₂ i) ^ 2
+              + -(α + β) * (r i - P i) ^ 2) :=
+            Finset.sum_congr rfl (fun i _ => step i)
+      _ = -(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2
+              + -(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2 := by
+            rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+  -- The constant factor pulls out of the integral
+  change (∫ r : ℝ³, primitiveGTO_s α R₁ r * primitiveGTO_s β R₂ r) = _
+  conv_lhs =>
+    arg 2; intro r
+    rw [hsimp r]
+  rw [MeasureTheory.integral_const_mul]
+  -- Now reduce ∫ exp(-(α+β)·∑(r-P)²) to ∫ exp(-(α+β)·∑r²) by translation
+  have htrans :
+      (∫ r : ℝ³, Real.exp (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2)) =
+        ∫ r : ℝ³, Real.exp (-(α + β) * ∑ i : Fin 3, (r i) ^ 2) := by
+    have h := integral_sub_right_eq_self (μ := (volume : Measure ℝ³))
+      (fun r : ℝ³ => Real.exp (-(α + β) * ∑ i : Fin 3, (r i) ^ 2)) P
+    simp only at h
+    rw [← h]
+    simp only [Pi.sub_apply]
+  rw [htrans]
+  -- Split exp of sum into product of exps; apply Fubini and 1D gaussian
+  have hsplit : ∀ r : ℝ³,
+      Real.exp (-(α + β) * ∑ i : Fin 3, (r i) ^ 2) =
+        ∏ i : Fin 3, Real.exp (-(α + β) * (r i) ^ 2) := by
+    intro r
+    rw [Finset.mul_sum, ← Real.exp_sum]
+  conv_lhs =>
+    arg 2; arg 2; intro r
+    rw [hsplit r]
+  rw [integral_fintype_prod_volume_eq_pow (fun x : ℝ => Real.exp (-(α + β) * x ^ 2)),
+      integral_gaussian]
+  simp [Fintype.card_fin, mul_comm]
+
+/-- Bilinearity of the overlap integral over the first argument: a finite sum can be pulled out,
+provided each summand is integrable. -/
+theorem overlap_finset_sum_left {ι : Type} [Fintype ι]
+    (f : ι → ℝ³ → ℝ) (ψ : ℝ³ → ℝ)
+    (hint : ∀ i, Integrable (fun r => f i r * ψ r)) :
+    overlap (fun r => ∑ i : ι, f i r) ψ = ∑ i : ι, overlap (f i) ψ := by
+  unfold overlap
+  simp_rw [Finset.sum_mul]
+  exact MeasureTheory.integral_finset_sum _ (fun i _ => hint i)
+
+/-- Bilinearity of the overlap integral over the second argument. -/
+theorem overlap_finset_sum_right {ι : Type} [Fintype ι]
+    (φ : ℝ³ → ℝ) (g : ι → ℝ³ → ℝ)
+    (hint : ∀ i, Integrable (fun r => φ r * g i r)) :
+    overlap φ (fun r => ∑ i : ι, g i r) = ∑ i : ι, overlap φ (g i) := by
+  unfold overlap
+  simp_rw [Finset.mul_sum]
+  exact MeasureTheory.integral_finset_sum _ (fun i _ => hint i)
+
+/-- The overlap of two contracted s-type GTOs expands bilinearly into the Gaussian product
+theorem over each pair of primitives. Requires `αᵢ + βⱼ ≠ 0` and integrability for every pair. -/
+theorem overlap_contractedGTO_s {ι κ : Type} [Fintype ι] [Fintype κ]
+    (c : ι → ℝ) (α : ι → ℝ) (R₁ : ℝ³)
+    (d : κ → ℝ) (β : κ → ℝ) (R₂ : ℝ³)
+    (hαβ : ∀ i j, α i + β j ≠ 0)
+    (hint : ∀ i j, Integrable
+      (fun r => primitiveGTO_s (α i) R₁ r * primitiveGTO_s (β j) R₂ r)) :
+    overlap (contractedGTO c α R₁ 0) (contractedGTO d β R₂ 0) =
+      ∑ i : ι, ∑ j : κ, c i * d j *
+        ((Real.sqrt (π / (α i + β j))) ^ 3 *
+          Real.exp (-(α i * β j) / (α i + β j) *
+            ∑ k : Fin 3, (R₁ k - R₂ k) ^ 2)) := by
+  -- Unfold contractedGTO and pull the sums out
+  have hexpand : ∀ r : ℝ³,
+      contractedGTO c α R₁ 0 r * contractedGTO d β R₂ 0 r
+        = ∑ i : ι, ∑ j : κ,
+            c i * d j * (primitiveGTO_s (α i) R₁ r * primitiveGTO_s (β j) R₂ r) := by
+    intro r
+    simp only [contractedGTO, primitiveGTO_s]
+    rw [Finset.sum_mul]
+    apply Finset.sum_congr rfl; intro i _
+    rw [Finset.mul_sum]
+    apply Finset.sum_congr rfl; intro j _
+    ring
+  unfold overlap
+  conv_lhs =>
+    arg 2; intro r
+    rw [hexpand r]
+  rw [MeasureTheory.integral_finset_sum (Finset.univ : Finset ι)
+        (fun i _ => MeasureTheory.integrable_finset_sum _
+          (fun j _ => ((hint i j).const_mul (c i * d j))))]
+  apply Finset.sum_congr rfl; intro i _
+  rw [MeasureTheory.integral_finset_sum (Finset.univ : Finset κ)
+        (fun j _ => (hint i j).const_mul (c i * d j))]
+  apply Finset.sum_congr rfl; intro j _
+  rw [MeasureTheory.integral_const_mul]
+  congr 1
+  exact overlap_primitiveGTO_s_diff_center (α i) (β j) (hαβ i j) R₁ R₂
+
+/-! ## Higher angular momentum, kinetic, nuclear attraction, ERI
+
+The closed forms below are the standard quantum-chemistry results. Each requires either a
+moment-integral lemma (the `(2k-1)!! / (2γ)^k · √(π/γ)` formula, not yet in Mathlib) or a
+computation of the Laplacian of a Gaussian, or the Boys function. We state the formulas here
+without proof, so the file documents the intended targets. -/
+
+/-- The one-dimensional Gaussian even-moment formula:
+  `M(2k, γ) = (2k-1)!! · √(π/γ) / (2γ)^k`. Odd moments vanish by symmetry. -/
+noncomputable def gaussianMoment (n : ℕ) (γ : ℝ) : ℝ :=
+  if n % 2 = 1 then 0
+  else (Nat.doubleFactorial (n - 1) : ℝ) * Real.sqrt (π / γ) / (2 * γ) ^ (n / 2)
+
+/-- The overlap of two same-center primitive GTOs with general angular momenta `l`, `m` factors
+into a product of one-dimensional Gaussian moments of total degree `lᵢ + mᵢ`. -/
+theorem overlap_primitiveGTO_same_center (α β : ℝ) (R : ℝ³) (l m : Fin 3 → ℕ) :
+    overlap (primitiveGTO α R l) (primitiveGTO β R m) =
+      ∏ i : Fin 3, gaussianMoment (l i + m i) (α + β) := by
+  sorry
+
+/-- The overlap of two different-center primitive GTOs with general angular momenta factors,
+after translation to the product center `P = (αR₁ + βR₂)/(α+β)`, into a product over the three
+axes of one-dimensional moment integrals of the form
+  `∫ (x + Pᵢ - R₁ᵢ)^(lᵢ) · (x + Pᵢ - R₂ᵢ)^(mᵢ) · exp(-(α+β)·x²) dx`,
+with an overall pre-factor `exp(-αβ/(α+β)·‖R₁-R₂‖²)` from the Gaussian product theorem. The
+fully-expanded McMurchie–Davidson form would express these one-dimensional moments as finite
+linear combinations of `gaussianMoment k (α+β)`. -/
+theorem overlap_primitiveGTO_diff_center (α β : ℝ) (_ : α + β ≠ 0)
+    (R₁ R₂ : ℝ³) (l m : Fin 3 → ℕ) :
+    overlap (primitiveGTO α R₁ l) (primitiveGTO β R₂ m) =
+      Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+        ∏ i : Fin 3, ∫ x : ℝ,
+          (x + (α * R₁ i + β * R₂ i) / (α + β) - R₁ i) ^ (l i) *
+          (x + (α * R₁ i + β * R₂ i) / (α + β) - R₂ i) ^ (m i) *
+          Real.exp (-(α + β) * x ^ 2) := by
+  sorry
+
+/-- The kinetic energy integral for two same-center s-type primitive GTOs:
+  `T = αβ/(α+β) · 3 · (√(π/(α+β)))^3`. -/
+theorem kinetic_primitiveGTO_s_same_center (α β : ℝ) (_ : α + β ≠ 0) (R : ℝ³) :
+    kinetic (primitiveGTO_s α R) (primitiveGTO_s β R) =
+      (α * β / (α + β)) * 3 * (Real.sqrt (π / (α + β))) ^ 3 := by
+  sorry
+
+/-- The kinetic energy integral for two different-center s-type primitive GTOs:
+  `T = (αβ/(α+β)) · (3 - 2αβ/(α+β) · ‖R₁-R₂‖²) · S(R₁,R₂)`,
+where `S(R₁,R₂)` is the corresponding overlap. -/
+theorem kinetic_primitiveGTO_s_diff_center (α β : ℝ) (hαβ : α + β ≠ 0) (R₁ R₂ : ℝ³) :
+    kinetic (primitiveGTO_s α R₁) (primitiveGTO_s β R₂) =
+      (α * β / (α + β)) *
+        (3 - 2 * α * β / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+        overlap (primitiveGTO_s α R₁) (primitiveGTO_s β R₂) := by
+  sorry
+
+/-- The zeroth Boys function `F₀(t) = ∫₀¹ exp(-t·u²) du`. This is the kernel that appears in
+the closed form of the nuclear attraction and two-electron repulsion integrals for s-type
+Gaussians. -/
+noncomputable def boys0 (t : ℝ) : ℝ := ∫ u in (0:ℝ)..1, Real.exp (-t * u ^ 2)
+
+/-- Nuclear attraction integral of two s-type primitive GTOs against a nucleus at `C`:
+  `V = (2π/(α+β)) · exp(-αβ/(α+β)·‖R₁-R₂‖²) · F₀((α+β)·‖P-C‖²)`,
+where `P = (αR₁+βR₂)/(α+β)` is the Gaussian product center. -/
+theorem nuclearAttraction_primitiveGTO_s
+    (α β : ℝ) (hαβ : α + β ≠ 0) (R₁ R₂ C : ℝ³) :
+    nuclearAttraction C (primitiveGTO_s α R₁) (primitiveGTO_s β R₂) =
+      (2 * π / (α + β)) *
+        Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+        boys0 ((α + β) *
+          ∑ i : Fin 3,
+            ((α * R₁ i + β * R₂ i) / (α + β) - C i) ^ 2) := by
+  sorry
+
+/-- Two-electron repulsion integral of four s-type primitive GTOs. With
+  `P = (α₁R₁+α₂R₂)/(α₁+α₂)`, `Q = (α₃R₃+α₄R₄)/(α₃+α₄)`, `p = α₁+α₂`, `q = α₃+α₄`, the closed
+form involves the zeroth Boys function evaluated at `pq/(p+q) · ‖P-Q‖²`. -/
+theorem electronRepulsion_primitiveGTO_s
+    (α₁ α₂ α₃ α₄ : ℝ) (_ : α₁ + α₂ ≠ 0) (_ : α₃ + α₄ ≠ 0)
+    (_ : (α₁ + α₂) + (α₃ + α₄) ≠ 0)
+    (R₁ R₂ R₃ R₄ : ℝ³) :
+    electronRepulsion (primitiveGTO_s α₁ R₁) (primitiveGTO_s α₂ R₂)
+        (primitiveGTO_s α₃ R₃) (primitiveGTO_s α₄ R₄) =
+      (2 * π ^ (5/2 : ℝ)) /
+        ((α₁ + α₂) * (α₃ + α₄) * Real.sqrt ((α₁ + α₂) + (α₃ + α₄))) *
+        Real.exp (-(α₁ * α₂) / (α₁ + α₂) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+        Real.exp (-(α₃ * α₄) / (α₃ + α₄) * ∑ i : Fin 3, (R₃ i - R₄ i) ^ 2) *
+        boys0 ((α₁ + α₂) * (α₃ + α₄) / ((α₁ + α₂) + (α₃ + α₄)) *
+          ∑ i : Fin 3,
+            ((α₁ * R₁ i + α₂ * R₂ i) / (α₁ + α₂) -
+             (α₃ * R₃ i + α₄ * R₄ i) / (α₃ + α₄)) ^ 2) := by
+  sorry
 
 end Fock
