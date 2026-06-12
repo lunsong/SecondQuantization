@@ -329,7 +329,119 @@ theorem overlap_primitiveGTO_diff_center (α β : ℝ) (_ : α + β ≠ 0)
           (x + (α * R₁ i + β * R₂ i) / (α + β) - R₁ i) ^ (l i) *
           (x + (α * R₁ i + β * R₂ i) / (α + β) - R₂ i) ^ (m i) *
           Real.exp (-(α + β) * x ^ 2) := by
-  sorry
+  -- Gaussian product center P = (α·R₁ + β·R₂) / (α+β)
+  set P : ℝ³ := fun i => (α * R₁ i + β * R₂ i) / (α + β) with hP
+  -- Completing the square identity (1D)
+  have hsq : ∀ x a b : ℝ,
+      -α * (x - a) ^ 2 + -β * (x - b) ^ 2
+        = -(α * β) / (α + β) * (a - b) ^ 2
+            + -(α + β) * (x - (α * a + β * b) / (α + β)) ^ 2 := by
+    intro x a b
+    field_simp
+    ring
+  -- Lift to 3D: equality of the exponent sums
+  have h_exp_sum_eq : ∀ r : ℝ³,
+      (-α * ∑ i : Fin 3, (r i - R₁ i) ^ 2) + (-β * ∑ i : Fin 3, (r i - R₂ i) ^ 2)
+        = (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2)
+          + (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+    intro r
+    have step : ∀ i : Fin 3,
+        -α * (r i - R₁ i) ^ 2 + -β * (r i - R₂ i) ^ 2
+          = -(α * β) / (α + β) * (R₁ i - R₂ i) ^ 2
+              + -(α + β) * (r i - P i) ^ 2 := by
+      intro i
+      have hPi : P i = (α * R₁ i + β * R₂ i) / (α + β) := rfl
+      rw [hPi]
+      exact hsq (r i) (R₁ i) (R₂ i)
+    calc
+      (-α * ∑ i : Fin 3, (r i - R₁ i) ^ 2) + (-β * ∑ i : Fin 3, (r i - R₂ i) ^ 2)
+          = ∑ i : Fin 3, (-α * (r i - R₁ i) ^ 2 + -β * (r i - R₂ i) ^ 2) := by
+            rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+      _ = ∑ i : Fin 3, (-(α * β) / (α + β) * (R₁ i - R₂ i) ^ 2
+              + -(α + β) * (r i - P i) ^ 2) :=
+            Finset.sum_congr rfl (fun i _ => step i)
+      _ = (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2)
+            + (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+              rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+  -- Rewrite the integrand: factor into constant * (poly prod) * translated Gaussian
+  have hsimp : ∀ r : ℝ³,
+      primitiveGTO α R₁ l r * primitiveGTO β R₂ m r =
+        Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+          (∏ i : Fin 3, (r i - R₁ i) ^ l i * (r i - R₂ i) ^ m i) *
+          Real.exp (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+    intro r
+    simp only [primitiveGTO]
+    calc
+      ((∏ i : Fin 3, (r i - R₁ i) ^ l i) * Real.exp (-α * ∑ i : Fin 3, (r i - R₁ i) ^ 2)) *
+          ((∏ i : Fin 3, (r i - R₂ i) ^ m i) * Real.exp (-β * ∑ i : Fin 3, (r i - R₂ i) ^ 2))
+      = ((∏ i : Fin 3, (r i - R₁ i) ^ l i) * (∏ i : Fin 3, (r i - R₂ i) ^ m i)) *
+          (Real.exp (-α * ∑ i : Fin 3, (r i - R₁ i) ^ 2) *
+            Real.exp (-β * ∑ i : Fin 3, (r i - R₂ i) ^ 2)) := by
+        ring
+      _ = ((∏ i : Fin 3, (r i - R₁ i) ^ l i) * (∏ i : Fin 3, (r i - R₂ i) ^ m i)) *
+          Real.exp ((-α * ∑ i : Fin 3, (r i - R₁ i) ^ 2) +
+            (-β * ∑ i : Fin 3, (r i - R₂ i) ^ 2)) := by
+        rw [Real.exp_add]
+      _ = ((∏ i : Fin 3, (r i - R₁ i) ^ l i) * (∏ i : Fin 3, (r i - R₂ i) ^ m i)) *
+          Real.exp ((-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) +
+            (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2)) := by
+        rw [h_exp_sum_eq r]
+      _ = Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+          ((∏ i : Fin 3, (r i - R₁ i) ^ l i) * (∏ i : Fin 3, (r i - R₂ i) ^ m i)) *
+          Real.exp (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+        rw [Real.exp_add]
+        ring
+      _ = Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+          (∏ i : Fin 3, ((r i - R₁ i) ^ l i * (r i - R₂ i) ^ m i)) *
+          Real.exp (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+        rw [Finset.prod_mul_distrib]
+  unfold overlap
+  conv_lhs =>
+    arg 2; intro r
+    rw [hsimp r, mul_assoc]
+  -- Pull out the constant factor (independent of r)
+  rw [MeasureTheory.integral_const_mul]
+  -- Now the target is: C * I = C * RHS where C = exp(...), I = ∫ poly*exp, RHS = ∏∫...
+  -- Factor the integral I into a product-of-1D-integrals, then translate each 1D integral
+  congr 2
+  -- Show I = RHS (without the C factor)
+  have hsplit : ∀ r : ℝ³,
+      Real.exp (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2) =
+        ∏ i : Fin 3, Real.exp (-(α + β) * (r i - P i) ^ 2) := by
+    intro r
+    rw [Finset.mul_sum, ← Real.exp_sum]
+  -- Rewrite integrand: (∏ poly) * exp_sum = ∏ (poly * exp_i)
+  have hintegrand_eq :
+      (fun r : ℝ³ => (∏ i : Fin 3, (r i - R₁ i) ^ l i * (r i - R₂ i) ^ m i) *
+        Real.exp (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2)) =
+      (fun r : ℝ³ => ∏ i : Fin 3, (((r i - R₁ i) ^ l i * (r i - R₂ i) ^ m i) *
+        Real.exp (-(α + β) * (r i - P i) ^ 2))) := by
+    ext r
+    rw [hsplit r]
+    simp [Finset.prod_mul_distrib, mul_assoc]
+  calc
+    (∫ r : ℝ³, (∏ i : Fin 3, (r i - R₁ i) ^ l i * (r i - R₂ i) ^ m i) *
+        Real.exp (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2))
+    = (∫ r : ℝ³, ∏ i : Fin 3, (((r i - R₁ i) ^ l i * (r i - R₂ i) ^ m i) *
+        Real.exp (-(α + β) * (r i - P i) ^ 2))) := by
+      rw [hintegrand_eq]
+    _ = ∏ i : Fin 3, ∫ x : ℝ, ((x - R₁ i) ^ l i * (x - R₂ i) ^ m i) *
+        Real.exp (-(α + β) * (x - P i) ^ 2) :=
+      integral_fintype_prod_volume_eq_prod
+        (fun i x => ((x - R₁ i) ^ l i * (x - R₂ i) ^ m i) *
+          Real.exp (-(α + β) * (x - P i) ^ 2))
+    _ = ∏ i : Fin 3, ∫ x : ℝ, (x + P i - R₁ i) ^ l i * (x + P i - R₂ i) ^ m i *
+        Real.exp (-(α + β) * x ^ 2) := by
+      refine Finset.prod_congr rfl (fun i _ => ?_)
+      have h1d := integral_sub_right_eq_self (μ := (volume : Measure ℝ))
+        (fun x : ℝ => (x + P i - R₁ i) ^ l i * (x + P i - R₂ i) ^ m i *
+          Real.exp (-(α + β) * x ^ 2)) (P i)
+      simpa [sub_add_cancel] using h1d
+    _ = ∏ i : Fin 3, ∫ x : ℝ,
+        (x + (α * R₁ i + β * R₂ i) / (α + β) - R₁ i) ^ l i *
+        (x + (α * R₁ i + β * R₂ i) / (α + β) - R₂ i) ^ m i *
+        Real.exp (-(α + β) * x ^ 2) := by
+      simp [P]
 
 /-- The kinetic energy integral for two same-center s-type primitive GTOs:
   `T = αβ/(α+β) · 3 · (√(π/(α+β)))^3`. -/
