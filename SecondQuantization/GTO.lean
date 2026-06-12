@@ -286,13 +286,12 @@ theorem overlap_contractedGTO_s {ι κ : Type} [Fintype ι] [Fintype κ]
   rw [MeasureTheory.integral_finset_sum (Finset.univ : Finset ι)
         (fun i _ => MeasureTheory.integrable_finset_sum _
           (fun j _ => ((hint i j).const_mul (c i * d j))))]
-  apply Finset.sum_congr rfl; intro i _
+  refine Finset.sum_congr rfl (fun i _ => ?_)
   rw [MeasureTheory.integral_finset_sum (Finset.univ : Finset κ)
         (fun j _ => (hint i j).const_mul (c i * d j))]
-  apply Finset.sum_congr rfl; intro j _
-  rw [MeasureTheory.integral_const_mul]
-  congr 1
-  exact overlap_primitiveGTO_s_diff_center (α i) (β j) (hαβ i j) R₁ R₂
+  refine Finset.sum_congr rfl (fun j _ => ?_)
+  rw [MeasureTheory.integral_const_mul, ← overlap]
+  rw [overlap_primitiveGTO_s_diff_center (α i) (β j) (hαβ i j) R₁ R₂]
 
 /-! ## Higher angular momentum, kinetic, nuclear attraction, ERI
 
@@ -313,7 +312,153 @@ noncomputable def gaussianMoment (n : ℕ) (γ : ℝ) : ℝ :=
   (`MeasureTheory.integral_mul_deriv_eq_deriv_mul_of_integrable`). -/
 lemma integral_gaussian_moment_1d (n : ℕ) (γ : ℝ) (hγ : γ > 0) :
     ∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2) = gaussianMoment n γ := by
-  sorry
+  -- Integrability of x^k * exp(-γ x²) on ℝ for any k : ℕ
+  have h_int (k : ℕ) : Integrable (fun x : ℝ => x ^ k * Real.exp (-γ * x ^ 2)) volume := by
+    have hk : (-1 : ℝ) < (k : ℝ) := by
+      have hk' : (0 : ℝ) ≤ (k : ℝ) := Nat.cast_nonneg _
+      linarith
+    have h := integrable_rpow_mul_exp_neg_mul_sq hγ hk
+    simpa [Real.rpow_natCast] using h
+  -- Algebraic identity for gaussianMoment: recurrence in the even/odd case
+  have h_gm_recurrence (m : ℕ) : gaussianMoment (m + 2) γ =
+      ((m + 1 : ℝ) / (2 * γ)) * gaussianMoment m γ := by
+    dsimp [gaussianMoment]
+    by_cases hm : m % 2 = 1
+    · have hm2 : (m + 2) % 2 = 1 := by
+        rw [Nat.add_mod_right]; simpa using hm
+      simp [hm, hm2]
+    · have hm_even : m % 2 = 0 := Nat.mod_two_eq_zero_or_one m |>.resolve_right hm
+      have hm2_even : (m + 2) % 2 = 0 := by
+        rw [Nat.add_mod_right]; simpa using hm_even
+      simp [hm_even, hm2_even]
+      have h_df : (Nat.doubleFactorial (m + 1) : ℝ) =
+          (m + 1 : ℝ) * (Nat.doubleFactorial (m - 1) : ℝ) := by
+        simp [Nat.doubleFactorial_add_one m]
+      rw [h_df]
+      have h_pow : (2 * γ : ℝ) ^ (m / 2 + 1) = (2 * γ : ℝ) * (2 * γ : ℝ) ^ (m / 2) := by
+        rw [pow_succ, mul_comm]
+      rw [h_pow]
+      field_simp [show 2 * γ ≠ 0 by linarith]
+  -- Integral recurrence: I_{m+2} = ((m+1)/(2γ)) * I_m, using derivative method
+  have h_int_recurrence (m : ℕ) : (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) =
+      ((m + 1 : ℝ) / (2 * γ)) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) := by
+    set f := fun x : ℝ => x ^ (m + 1) * Real.exp (-γ * x ^ 2) with hf_def
+    set f1 := fun x : ℝ => ((m + 1 : ℝ) * x ^ m * Real.exp (-γ * x ^ 2)) with hf1_def
+    set f2 := fun x : ℝ => (2 * γ) * x ^ (m + 2) * Real.exp (-γ * x ^ 2) with hf2_def
+    set f' := fun x : ℝ => f1 x - f2 x with hf'_def
+    -- Derivative: f' = d/dx f
+    have h_deriv : ∀ x : ℝ, HasDerivAt f (f' x) x := by
+      intro x
+      dsimp [f, f', f1, f2]
+      have h1 : HasDerivAt (fun x : ℝ => x ^ (m + 1)) ((m + 1 : ℝ) * x ^ m) x := by
+        have h := hasDerivAt_pow (m + 1) x
+        simpa [show ((m + 1 : ℕ) - 1 : ℕ) = m by omega, Nat.cast_succ] using h
+      have h2 : HasDerivAt (fun x : ℝ => Real.exp (-γ * x ^ 2))
+          (Real.exp (-γ * x ^ 2) * (-2 * γ * x)) x := by
+        have h_inner : HasDerivAt (fun x : ℝ => -γ * x ^ 2) (-2 * γ * x) x := by
+          have h_sq : HasDerivAt (fun x : ℝ => x ^ 2) (2 * x) x := by
+            simpa using hasDerivAt_pow 2 x
+          simpa [mul_comm, mul_left_comm, mul_assoc, neg_mul] using h_sq.const_mul (-γ)
+        exact (Real.hasDerivAt_exp (-γ * x ^ 2)).comp x h_inner
+      have h_mul := h1.mul h2
+      convert h_mul using 1
+      ring
+    -- Integrability conditions
+    have h_int_f : Integrable f volume := by dsimp [f]; simpa using h_int (m + 1)
+    have h_int_f1 : Integrable f1 volume := by
+      dsimp [f1]; simpa [mul_assoc] using (h_int m).const_mul (m + 1 : ℝ)
+    have h_int_f2 : Integrable f2 volume := by
+      dsimp [f2]; simpa [mul_assoc] using (h_int (m + 2)).const_mul (2 * γ)
+    have h_int_f' : Integrable f' volume := by
+      dsimp [f']; exact Integrable.sub h_int_f1 h_int_f2
+    -- ∫ f' = 0 by fundamental theorem of calculus (boundary terms vanish at ±∞)
+    have h_zero : (∫ x : ℝ, f' x) = 0 :=
+      MeasureTheory.integral_eq_zero_of_hasDerivAt_of_integrable h_deriv h_int_f' h_int_f
+    -- Expand: ∫ f' = (m+1)*I_m - (2γ)*I_{m+2}
+    have h_expanded : (∫ x : ℝ, f' x) = (m + 1 : ℝ) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) -
+        (2 * γ) * (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) := by
+      dsimp [f', f1, f2]
+      rw [integral_sub h_int_f1 h_int_f2]
+      have h_int1 : (∫ x : ℝ, ((m + 1 : ℝ) * x ^ m * Real.exp (-γ * x ^ 2))) =
+          (m + 1 : ℝ) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) := by
+        calc
+          (∫ x : ℝ, ((m + 1 : ℝ) * x ^ m * Real.exp (-γ * x ^ 2))) =
+              (∫ x : ℝ, (m + 1 : ℝ) * (x ^ m * Real.exp (-γ * x ^ 2))) := by
+            refine integral_congr_ae ?_; filter_upwards with x; ring
+          _ = (m + 1 : ℝ) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) := by
+            rw [integral_const_mul]
+      have h_int2 : (∫ x : ℝ, (2 * γ) * x ^ (m + 2) * Real.exp (-γ * x ^ 2)) =
+          (2 * γ) * (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) := by
+        calc
+          (∫ x : ℝ, (2 * γ) * x ^ (m + 2) * Real.exp (-γ * x ^ 2)) =
+              (∫ x : ℝ, (2 * γ) * (x ^ (m + 2) * Real.exp (-γ * x ^ 2))) := by
+            refine integral_congr_ae ?_; filter_upwards with x; ring
+          _ = (2 * γ) * (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) := by
+            rw [integral_const_mul]
+      rw [h_int1, h_int2]
+    rw [h_expanded] at h_zero
+    -- Rearrange: (m+1)*I_m = (2γ)*I_{m+2} → I_{m+2} = (m+1)/(2γ) * I_m
+    have h_eq : (m + 1 : ℝ) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) =
+        (2 * γ) * (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) := by linarith
+    have h_denom : 2 * γ ≠ 0 := by linarith
+    calc
+      (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) =
+          ((2 * γ)⁻¹) * ((2 * γ) * (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2))) := by
+        field_simp [h_denom]
+      _ = ((2 * γ)⁻¹) * ((m + 1 : ℝ) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2))) := by rw [h_eq]
+      _ = ((m + 1 : ℝ) / (2 * γ)) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) := by ring
+  -- Main proof: strong induction on n
+  refine Nat.strong_induction_on n ?_
+  intro n ih
+  by_cases hn_odd : n % 2 = 1
+  · -- Odd n: integral = 0 by symmetry, gaussianMoment n γ = 0 by definition
+    have h_gm : gaussianMoment n γ = 0 := by
+      dsimp [gaussianMoment]; simp [hn_odd]
+    rw [h_gm]
+    -- Show integral = 0 by f(-x) = -f(x) for odd n
+    have h_main : (∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2)) =
+        - (∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2)) := by
+      have h_eq : (∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2)) =
+          (∫ x : ℝ, (-x) ^ n * Real.exp (-γ * (-x) ^ 2)) := by
+        rw [integral_neg_eq_self (fun x => x ^ n * Real.exp (-γ * x ^ 2)) volume]
+      have h_neg_pow : ∀ x : ℝ, (-x) ^ n = -(x ^ n) := by
+        intro x
+        have h_odd : Odd n := Nat.odd_iff.mpr hn_odd
+        calc
+          (-x) ^ n = ((-1 : ℝ) * x) ^ n := by ring
+          _ = (-1 : ℝ) ^ n * x ^ n := by ring
+          _ = (-1 : ℝ) * x ^ n := by rw [Odd.neg_one_pow h_odd]
+          _ = -(x ^ n) := by ring
+      calc
+        (∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2)) =
+            (∫ x : ℝ, (-x) ^ n * Real.exp (-γ * (-x) ^ 2)) := h_eq
+        _ = (∫ x : ℝ, (-(x ^ n)) * Real.exp (-γ * x ^ 2)) := by
+          refine integral_congr_ae ?_
+          filter_upwards with x
+          simp [h_neg_pow x, show (-x) ^ 2 = x ^ 2 by ring]
+        _ = (∫ x : ℝ, -(x ^ n * Real.exp (-γ * x ^ 2))) := by
+          refine integral_congr_ae ?_
+          filter_upwards with x; ring
+        _ = - (∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2)) := by rw [integral_neg]
+    linarith
+  · -- Even n: handle n=0 directly, or use recurrence for n ≥ 2
+    have hn_even : n % 2 = 0 := Nat.mod_two_eq_zero_or_one n |>.resolve_right hn_odd
+    by_cases hn0 : n = 0
+    · subst hn0
+      simp [gaussianMoment]
+      simpa [neg_mul] using integral_gaussian γ
+    by_cases hn1 : n = 1
+    · subst hn1; norm_num at hn_even
+    -- n ≥ 2: write n = m + 2, apply recurrence and induction hypothesis
+    have hn_ge2 : 2 ≤ n := by omega
+    rcases Nat.exists_eq_add_of_le hn_ge2 with ⟨m, hm⟩
+    rw [show n = m + 2 by omega] at ih ⊢
+    calc
+      (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) =
+          ((m + 1 : ℝ) / (2 * γ)) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) :=
+        h_int_recurrence m
+      _ = ((m + 1 : ℝ) / (2 * γ)) * gaussianMoment m γ := by rw [ih m (by omega)]
+      _ = gaussianMoment (m + 2) γ := by rw [h_gm_recurrence m]
 
 /-- The overlap of two same-center primitive GTOs with general angular momenta `l`, `m` factors
 into a product of one-dimensional Gaussian moments of total degree `lᵢ + mᵢ`. -/
