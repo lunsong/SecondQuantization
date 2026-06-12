@@ -307,6 +307,14 @@ noncomputable def gaussianMoment (n : ℕ) (γ : ℝ) : ℝ :=
   if n % 2 = 1 then 0
   else (Nat.doubleFactorial (n - 1) : ℝ) * Real.sqrt (π / γ) / (2 * γ) ^ (n / 2)
 
+/-- **Target lemma.** The 1D Gaussian moment integral equals `gaussianMoment n γ` for `γ > 0`.
+  Standard formula: `∫ x^n·exp(-γx²) dx = (n-1)‼·√(π/γ)/(2γ)^(n/2)` for even n, 0 for odd n.
+  Proof outline: induction on `n` using integration by parts
+  (`MeasureTheory.integral_mul_deriv_eq_deriv_mul_of_integrable`). -/
+lemma integral_gaussian_moment_1d (n : ℕ) (γ : ℝ) (hγ : γ > 0) :
+    ∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2) = gaussianMoment n γ := by
+  sorry
+
 /-- The overlap of two same-center primitive GTOs with general angular momenta `l`, `m` factors
 into a product of one-dimensional Gaussian moments of total degree `lᵢ + mᵢ`. -/
 theorem overlap_primitiveGTO_same_center (α β : ℝ) (R : ℝ³) (l m : Fin 3 → ℕ) :
