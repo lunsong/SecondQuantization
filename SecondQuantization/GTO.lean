@@ -460,12 +460,110 @@ lemma integral_gaussian_moment_1d (n : ℕ) (γ : ℝ) (hγ : γ > 0) :
       _ = ((m + 1 : ℝ) / (2 * γ)) * gaussianMoment m γ := by rw [ih m (by omega)]
       _ = gaussianMoment (m + 2) γ := by rw [h_gm_recurrence m]
 
+/-- For `γ ≤ 0`, `gaussianMoment n γ = 0` for all `n`, since `Real.sqrt (π / γ) = 0`. -/
+lemma gaussianMoment_eq_zero_of_nonpos (n : ℕ) {γ : ℝ} (hγ : γ ≤ 0) : gaussianMoment n γ = 0 := by
+  dsimp [gaussianMoment]
+  split_ifs with hn
+  · rfl
+  · have h_sqrt : Real.sqrt (π / γ) = 0 := by
+      apply Real.sqrt_eq_zero_of_nonpos
+      exact div_nonpos_of_nonneg_of_nonpos pi_pos.le hγ
+    simp [h_sqrt]
+
+/-- For `γ ≤ 0`, the integral `∫ x^n * exp(-γ*x²) dx` equals 0,
+since the integrand is not Bochner-integrable on ℝ. -/
+lemma integral_gaussian_moment_1d_of_nonpos (n : ℕ) {γ : ℝ} (hγ : γ ≤ 0) :
+    ∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2) = gaussianMoment n γ := by
+  rw [gaussianMoment_eq_zero_of_nonpos n hγ, integral_undef]
+  -- The function x^n * exp(-γ*x²) is not integrable for γ ≤ 0 because
+  -- it dominates |x|^n on |x| ≥ 1 and |x|^n is not integrable on ℝ.
+  -- For now we leave this as a targeted gap.
+  sorry
+
 /-- The overlap of two same-center primitive GTOs with general angular momenta `l`, `m` factors
 into a product of one-dimensional Gaussian moments of total degree `lᵢ + mᵢ`. -/
 theorem overlap_primitiveGTO_same_center (α β : ℝ) (R : ℝ³) (l m : Fin 3 → ℕ) :
     overlap (primitiveGTO α R l) (primitiveGTO β R m) =
       ∏ i : Fin 3, gaussianMoment (l i + m i) (α + β) := by
-  sorry
+  unfold overlap primitiveGTO
+  -- Simplify the integrand to a product of 1D factors
+  have hsimp : ∀ r : ℝ³,
+      ((∏ i : Fin 3, (r i - R i) ^ l i) * Real.exp (-α * ∑ i : Fin 3, (r i - R i) ^ 2)) *
+        ((∏ i : Fin 3, (r i - R i) ^ m i) * Real.exp (-β * ∑ i : Fin 3, (r i - R i) ^ 2)) =
+        ∏ i : Fin 3, ((r i - R i) ^ (l i + m i) * Real.exp (-(α + β) * (r i - R i) ^ 2)) := by
+    intro r
+    calc
+      ((∏ i : Fin 3, (r i - R i) ^ l i) * Real.exp (-α * ∑ i : Fin 3, (r i - R i) ^ 2)) *
+          ((∏ i : Fin 3, (r i - R i) ^ m i) * Real.exp (-β * ∑ i : Fin 3, (r i - R i) ^ 2)) =
+          ((∏ i : Fin 3, (r i - R i) ^ l i) * (∏ i : Fin 3, (r i - R i) ^ m i)) *
+            (Real.exp (-α * ∑ i : Fin 3, (r i - R i) ^ 2) *
+              Real.exp (-β * ∑ i : Fin 3, (r i - R i) ^ 2)) := by ring
+      _ = ((∏ i : Fin 3, ((r i - R i) ^ l i * (r i - R i) ^ m i))) *
+            (Real.exp (-α * ∑ i : Fin 3, (r i - R i) ^ 2) *
+              Real.exp (-β * ∑ i : Fin 3, (r i - R i) ^ 2)) := by
+        rw [← Finset.prod_mul_distrib]
+      _ = ((∏ i : Fin 3, ((r i - R i) ^ l i * (r i - R i) ^ m i))) *
+            Real.exp ((-α * ∑ i : Fin 3, (r i - R i) ^ 2) +
+              (-β * ∑ i : Fin 3, (r i - R i) ^ 2)) := by rw [Real.exp_add]
+      _ = (∏ i : Fin 3, ((r i - R i) ^ l i * (r i - R i) ^ m i)) *
+            Real.exp (-(α + β) * ∑ i : Fin 3, (r i - R i) ^ 2) := by
+        have h : (-α * ∑ i : Fin 3, (r i - R i) ^ 2) + (-β * ∑ i : Fin 3, (r i - R i) ^ 2) =
+            -(α + β) * ∑ i : Fin 3, (r i - R i) ^ 2 := by ring
+        rw [h]
+      _ = (∏ i : Fin 3, ((r i - R i) ^ (l i + m i))) *
+            Real.exp (-(α + β) * ∑ i : Fin 3, (r i - R i) ^ 2) := by
+        refine congrArg (· * _) (Finset.prod_congr rfl fun i _ => ?_)
+        rw [pow_add]
+      _ = (∏ i : Fin 3, ((r i - R i) ^ (l i + m i))) *
+            Real.exp (∑ i : Fin 3, (-(α + β) * (r i - R i) ^ 2)) := by
+        rw [Finset.mul_sum]
+      _ = (∏ i : Fin 3, ((r i - R i) ^ (l i + m i))) *
+            (∏ i : Fin 3, Real.exp (-(α + β) * (r i - R i) ^ 2)) := by
+        rw [Real.exp_sum]
+      _ = ∏ i : Fin 3, ((r i - R i) ^ (l i + m i) * Real.exp (-(α + β) * (r i - R i) ^ 2)) := by
+        rw [Finset.prod_mul_distrib]
+  -- Rewrite the integral using hsimp
+  have h_int_eq : (∫ r : ℝ³,
+      ((∏ i : Fin 3, (r i - R i) ^ l i) * Real.exp (-α * ∑ i : Fin 3, (r i - R i) ^ 2)) *
+        ((∏ i : Fin 3, (r i - R i) ^ m i) * Real.exp (-β * ∑ i : Fin 3, (r i - R i) ^ 2))) =
+      (∫ r : ℝ³, ∏ i : Fin 3,
+        ((r i - R i) ^ (l i + m i) * Real.exp (-(α + β) * (r i - R i) ^ 2))) := by
+    refine integral_congr_ae ?_
+    filter_upwards with r
+    rw [hsimp r]
+  rw [h_int_eq]
+  -- Translate r ↦ r + R (so r - R becomes r)
+  have h_trans : (∫ r : ℝ³, ∏ i : Fin 3,
+      ((r i - R i) ^ (l i + m i) * Real.exp (-(α + β) * (r i - R i) ^ 2))) =
+      (∫ r : ℝ³, ∏ i : Fin 3,
+        (r i ^ (l i + m i) * Real.exp (-(α + β) * (r i) ^ 2))) := by
+    have := integral_sub_right_eq_self (μ := (volume : Measure ℝ³))
+      (fun r : ℝ³ => ∏ i : Fin 3,
+        (r i ^ (l i + m i) * Real.exp (-(α + β) * (r i) ^ 2))) R
+    simpa [Pi.sub_apply] using this
+  rw [h_trans]
+  -- Factor the 3D integral into product of 1D integrals
+  rw [integral_fintype_prod_volume_eq_prod
+    (fun (i : Fin 3) (x : ℝ) => x ^ (l i + m i) * Real.exp (-(α + β) * x ^ 2))]
+  -- Now we have ∏ i, ∫ x, x^(l_i+m_i) * exp(-(α+β)*x²)
+  -- Each 1D integral equals gaussianMoment (l_i + m_i) (α+β)
+  by_cases hsum_pos : α + β > 0
+  · -- Positive case: use integral_gaussian_moment_1d directly
+    refine Finset.prod_congr rfl fun i _ => ?_
+    rw [integral_gaussian_moment_1d (l i + m i) (α + β) hsum_pos]
+  · -- Non-positive case: both sides are 0
+    have hsum_nonpos : α + β ≤ 0 := by linarith
+    -- Each 1D integral is 0 by integral_gaussian_moment_1d_of_nonpos
+    -- and gaussianMoment = 0 by gaussianMoment_eq_zero_of_nonpos
+    have h_int_zero : (∏ i : Fin 3, ∫ x : ℝ,
+        x ^ (l i + m i) * Real.exp (-(α + β) * x ^ 2)) = 0 := by
+      refine Finset.prod_eq_zero (Finset.mem_univ 0) ?_
+      rw [integral_gaussian_moment_1d_of_nonpos (l 0 + m 0) hsum_nonpos,
+        gaussianMoment_eq_zero_of_nonpos (l 0 + m 0) hsum_nonpos]
+    have h_gm_prod_zero : (∏ i : Fin 3, gaussianMoment (l i + m i) (α + β)) = 0 := by
+      refine Finset.prod_eq_zero (Finset.mem_univ 0) ?_
+      rw [gaussianMoment_eq_zero_of_nonpos (l 0 + m 0) hsum_nonpos]
+    rw [h_int_zero, h_gm_prod_zero]
 
 /-- The overlap of two different-center primitive GTOs with general angular momenta factors,
 after translation to the product center `P = (αR₁ + βR₂)/(α+β)`, into a product over the three
