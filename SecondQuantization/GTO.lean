@@ -670,8 +670,7 @@ where `γ = α+β`, `Aᵢ = Pᵢ - R₁ᵢ = β·(R₂ᵢ - R₁ᵢ)/(α+β)`,
 `M(k, γ) = gaussianMoment k γ` is the closed-form Gaussian moment integral.
 
 Requires `α + β > 0` to apply `integral_gaussian_moment_1d`. -/
-theorem overlap_primitiveGTO_diff_center_expanded (α β : ℝ) (hαβ : α + β ≠ 0) (hpos : α + β > 0)
-    (R₁ R₂ : ℝ³) (l m : Fin 3 → ℕ) :
+theorem overlap_primitiveGTO (α β : ℝ) (hpos : α + β > 0) (R₁ R₂ : ℝ³) (l m : Fin 3 → ℕ) :
     overlap (primitiveGTO α R₁ l) (primitiveGTO β R₂ m) =
       Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
         ∏ i : Fin 3,
@@ -680,7 +679,7 @@ theorem overlap_primitiveGTO_diff_center_expanded (α β : ℝ) (hαβ : α + β
             (((α * R₁ i + β * R₂ i) / (α + β) - R₁ i) ^ (l i - p)) *
             (((α * R₁ i + β * R₂ i) / (α + β) - R₂ i) ^ (m i - q)) *
             gaussianMoment (p + q) (α + β)) := by
-  rw [overlap_primitiveGTO_diff_center α β hαβ R₁ R₂ l m]
+  rw [overlap_primitiveGTO_diff_center α β hpos.ne.symm R₁ R₂ l m]
   congr 1
   refine Finset.prod_congr rfl (fun i _ => ?_)
   let γ := α + β
