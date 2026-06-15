@@ -60,9 +60,7 @@ def ann (x : α) : Operator α R where
 set_option linter.flexible false in
 theorem cre_ann {x y : α} : cre R x * ann R y + ann R y * cre R x = if x = y then 1 else 0 := by
   ext φ s
-  simp only [cre, ann, ite_not, LinearMap.add_apply, Module.End.mul_apply, LinearMap.coe_mk,
-    AddHom.coe_mk, Finset.mem_erase, ne_eq, ↓commSign_erase, Int.cast_ite, Int.cast_neg, ite_mul,
-    neg_mul, mul_ite, mul_zero, mul_neg, Finset.mem_insert, ↓commSign_insert, Pi.add_apply]
+  simp [cre, ann, commSign_erase, commSign_insert]
   split_ifs
   any_goals simp
   any_goals grind
@@ -80,10 +78,7 @@ theorem cre_ann {x y : α} : cre R x * ann R y + ann R y * cre R x = if x = y th
 set_option linter.flexible false in
 theorem cre_cre {x y : α} : cre R x * cre R y + cre R y * cre R x = 0 := by
   ext φ s
-  simp only [cre, LinearMap.add_apply, Module.End.mul_apply, LinearMap.coe_mk, AddHom.coe_mk,
-    Finset.mem_erase, ne_eq, commSign_erase, Int.cast_ite, Int.cast_neg, ite_mul, neg_mul, mul_ite,
-    mul_neg, mul_zero, Finset.erase_right_comm, Pi.add_apply, LinearMap.zero_apply,
-    Pi.ofNat_apply]
+  simp [cre, commSign_erase, Finset.erase_right_comm]
   split_ifs
   any_goals simp
   any_goals grind
@@ -92,10 +87,7 @@ theorem cre_cre {x y : α} : cre R x * cre R y + cre R y * cre R x = 0 := by
 set_option linter.flexible false in
 theorem ann_ann {x y : α} : ann R x * ann R y + ann R y * ann R x = 0 := by
   ext φ s
-  simp only [ann, ite_not, LinearMap.add_apply, Module.End.mul_apply, LinearMap.coe_mk,
-    AddHom.coe_mk, Finset.mem_insert, commSign_insert, Int.cast_ite, Int.cast_neg,
-    Finset.insert_comm, ite_mul, neg_mul, mul_ite, mul_zero, mul_neg, Pi.add_apply,
-    LinearMap.zero_apply, Pi.zero_apply]
+  simp [ann, commSign_insert, Finset.insert_comm]
   split_ifs
   any_goals simp
   any_goals grind
