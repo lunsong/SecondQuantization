@@ -839,8 +839,7 @@ lemma integral_coord_sq_exp_neg_mul_sq_sum_3d (γ : ℝ) (hγ : 0 < γ) (i : Fin
   -- Convert ∑ j, r_j² = r₀²+r₁²+r₂² and expand
   have h_exp_sum (r : ℝ³) : Real.exp (-γ * ∑ j : Fin 3, (r j) ^ 2) =
       Real.exp (-γ * (r 0) ^ 2) * Real.exp (-γ * (r 1) ^ 2) * Real.exp (-γ * (r 2) ^ 2) := by
-    rw [Fin.sum_univ_three, Real.exp_add, Real.exp_add]; ring
-  -- Build a family of 1D functions: g_j(x) = x²·exp(-γx²) if j=i, else exp(-γx²)
+    rw [Finset.mul_sum, Fin.sum_univ_three, Real.exp_add, Real.exp_add]
   let g : Fin 3 → ℝ → ℝ := fun j =>
     if j = i then (fun x => x ^ 2 * Real.exp (-γ * x ^ 2))
     else (fun x => Real.exp (-γ * x ^ 2))
@@ -850,7 +849,7 @@ lemma integral_coord_sq_exp_neg_mul_sq_sum_3d (γ : ℝ) (hγ : 0 < γ) (i : Fin
     dsimp [g]
     -- Now: (r i)^2 * exp₀*exp₁*exp₂ = g₀(r₀)*g₁(r₁)*g₂(r₂)
     -- Case analysis on i via fin_cases
-    fin_cases i <;> ring
+    fin_cases i <;> {simp; ring}
   calc
     (∫ r : ℝ³, (r i) ^ 2 * Real.exp (-γ * ∑ j : Fin 3, (r j) ^ 2))
     _ = (∫ r : ℝ³, ∏ j : Fin 3, g j (r j)) :=
@@ -859,7 +858,7 @@ lemma integral_coord_sq_exp_neg_mul_sq_sum_3d (γ : ℝ) (hγ : 0 < γ) (i : Fin
     _ = ((∫ x : ℝ, g 0 x) * (∫ x : ℝ, g 1 x) * (∫ x : ℝ, g 2 x)) := by rw [Fin.prod_univ_three]
     _ = (∫ x : ℝ, x ^ 2 * Real.exp (-γ * x ^ 2)) *
         ((∫ x : ℝ, Real.exp (-γ * x ^ 2)) ^ 2) := by
-      fin_cases i <;> simp [g]
+      fin_cases i <;> {simp [g]; ring}
 
 /-- Integrability of r_i²·exp(-γ·Σ_j r_j²) on ℝ³ (factors into product of 1D Gaussians). -/
 lemma integrable_coord_sq_exp_neg_mul_sq_sum (γ : ℝ) (hγ : 0 < γ) (i : Fin 3) :
@@ -880,8 +879,10 @@ lemma integrable_coord_sq_exp_neg_mul_sq_sum (γ : ℝ) (hγ : 0 < γ) (i : Fin 
       rw [Fin.sum_univ_three, mul_add, Real.exp_add, mul_add, Real.exp_add]
     rw [h_exp_sum, Fin.prod_univ_three]
     dsimp [g]
-    fin_cases i <;> simp [Fin.mk.injEq] <;> ring
-  rw [h_factor]
+    fin_cases i <;> simp <;> ring
+  conv =>
+    arg 1; intro r
+    rw [h_factor]
   exact MeasureTheory.Integrable.fintype_prod h_int_g
 
 /-! ## Kinetic energy integral for s-type GTOs -/
@@ -904,19 +905,16 @@ theorem kinetic_primitiveGTO_s_same_center (α β : ℝ) (hα : 0 < α) (hβ : 0
         (fderiv ℝ (primitiveGTO_s a R) r') (Pi.single i (1 : ℝ)) =
         (-2 * a) * (r' i - R i) * Real.exp (-a * ∑ j : Fin 3, (r' j - R j) ^ 2) := by
       rw [deriv_coord_primitiveGTO_s a R i r']
-      simp [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero, Finset.prod_const_one, one_mul]
+      simp [primitiveGTO_s, primitiveGTO, pow_zero, Finset.prod_const_one, one_mul]
     simp_rw [h_deriv α r, h_deriv β r]
-    calc
-      (∑ i : Fin 3, ((-2 * α) * (r i - R i) * Real.exp (-α * ∑ j, (r j - R j) ^ 2)) *
-        ((-2 * β) * (r i - R i) * Real.exp (-β * ∑ j, (r j - R j) ^ 2)))
-      = (∑ i : Fin 3, (r i - R i) ^ 2) * (4 * α * β *
-          Real.exp (-α * ∑ j, (r j - R j) ^ 2) * Real.exp (-β * ∑ j, (r j - R j) ^ 2)) := by
-        simp [Finset.mul_sum]; ring
-      _ = 4 * α * β * (∑ i : Fin 3, (r i - R i) ^ 2) *
-          Real.exp (-(α + β) * ∑ j : Fin 3, (r j - R j) ^ 2) := by
-        rw [mul_add, Real.exp_add, mul_assoc]; ring
-      _ = 4 * α * β * (∑ i : Fin 3, (r i - R i) ^ 2) *
-          Real.exp (-γ * ∑ i : Fin 3, (r i - R i) ^ 2) := by rw [hγ]
+    conv_lhs =>
+      conv =>
+        arg 2; intro i
+        equals 4 * α * β * rexp (- γ * ∑ j, (r j - R j) ^ 2) * (r i - R i) ^ 2 =>
+          rw [hγ, neg_add, add_mul, Real.exp_add]
+          ring
+      rw [← Finset.mul_sum]
+    ring
   rw [integral_congr_ae (by filter_upwards with r; rw [h_grad_dot r])]
   -- Pull out constant factor 4αβ
   have h_factor : (fun r : ℝ³ => 4 * α * β * (∑ i : Fin 3, (r i - R i) ^ 2) *
@@ -934,27 +932,36 @@ theorem kinetic_primitiveGTO_s_same_center (α β : ℝ) (hα : 0 < α) (hβ : 0
     simpa [Pi.sub_apply] using h
   rw [h_trans]
   -- |r|² = Σᵢ rᵢ², split into sum of 3 coordinate integrals
-  rw [show (fun r : ℝ³ => (∑ i : Fin 3, (r i) ^ 2) * Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2)) =
-      (fun r : ℝ³ => ∑ i : Fin 3, (r i) ^ 2 * Real.exp (-γ * ∑ j : Fin 3, (r j) ^ 2)) by
-    ext r; ring]
-  rw [integral_finset_sum _ (fun i _ => integrable_coord_sq_exp_neg_mul_sq_sum γ hγpos i)]
+  --rw [show (fun r : ℝ³ => (∑ i : Fin 3, (r i) ^ 2) * Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2)) =
+  --    (fun r : ℝ³ => ∑ i : Fin 3, (r i) ^ 2 * Real.exp (-γ * ∑ j : Fin 3, (r j) ^ 2)) by
+  --  ext r; ring]
+  conv_lhs =>
+    arg 2; arg 2
+    conv =>
+      arg 2; intro x
+      rw [Finset.sum_mul]
+    rw [integral_finset_sum _ (fun i _ => integrable_coord_sq_exp_neg_mul_sq_sum γ hγpos i)]
   simp_rw [integral_coord_sq_exp_neg_mul_sq_sum_3d γ hγpos]
-  simp [Fin.sum_univ_three]
+  simp only [one_div, neg_mul, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
+    Nat.cast_ofNat]
   -- Now: (1/2)·4αβ · 3 · (∫ x²·exp(-γx²)) · (∫ exp(-γx²))²
   have hI0 : (∫ x : ℝ, Real.exp (-γ * x ^ 2)) = Real.sqrt (π / γ) := integral_gaussian γ
   have hI2 : (∫ x : ℝ, x ^ 2 * Real.exp (-γ * x ^ 2)) = (Real.sqrt (π / γ)) / (2 * γ) := by
     rw [integral_gaussian_moment_1d 2 γ hγpos]
     simp [gaussianMoment, show (2 : ℕ) % 2 = 0 by decide, show (2 : ℕ) / 2 = 1 by decide]
-    ring
+  conv_lhs at hI0 =>
+    arg 2; intro x
+    rw [neg_mul]
+  conv_lhs at hI2 =>
+    arg 2; intro x
+    rw [neg_mul]
   rw [hI2, hI0]
   -- = (αβ/(α+β)) · 3 · (√(π/(α+β)))³
   have h_sq_sqrt : (Real.sqrt (π / γ)) ^ 2 = π / γ :=
     Real.sq_sqrt (div_nonneg (by positivity) (by linarith))
-  rw [h_sq_sqrt]
-  show (1/2 : ℝ) * (4 * α * β * (3 * ((Real.sqrt (π / γ)) / (2 * γ) * (π / γ)))) =
-      (α * β / γ) * 3 * (Real.sqrt (π / γ)) ^ 3
   field_simp [hγpos.ne.symm]
   ring
+
 
 /-- The kinetic energy integral for two different-center s-type primitive GTOs:
   `T = (αβ/(α+β)) · (3 - 2αβ/(α+β) · ‖R₁-R₂‖²) · S(R₁,R₂)`,
