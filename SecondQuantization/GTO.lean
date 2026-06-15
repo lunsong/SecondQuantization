@@ -836,41 +836,53 @@ lemma integral_coord_sq_exp_neg_mul_sq_sum_3d (γ : ℝ) (hγ : 0 < γ) (i : Fin
     (∫ r : ℝ³, (r i) ^ 2 * Real.exp (-γ * ∑ j : Fin 3, (r j) ^ 2)) =
       (∫ x : ℝ, x ^ 2 * Real.exp (-γ * x ^ 2)) *
         ((∫ x : ℝ, Real.exp (-γ * x ^ 2)) ^ 2) := by
-  have h_expand (r : ℝ³) : Real.exp (-γ * ∑ j : Fin 3, (r j) ^ 2) =
-      ∏ j : Fin 3, Real.exp (-γ * (r j) ^ 2) := by
-    rw [Finset.mul_sum, ← Real.exp_sum]
-  let f : Fin 3 → ℝ → ℝ := fun j =>
+  -- Convert ∑ j, r_j² = r₀²+r₁²+r₂² and expand
+  have h_exp_sum (r : ℝ³) : Real.exp (-γ * ∑ j : Fin 3, (r j) ^ 2) =
+      Real.exp (-γ * (r 0) ^ 2) * Real.exp (-γ * (r 1) ^ 2) * Real.exp (-γ * (r 2) ^ 2) := by
+    rw [Fin.sum_univ_three, Real.exp_add, Real.exp_add]; ring
+  -- Build a family of 1D functions: g_j(x) = x²·exp(-γx²) if j=i, else exp(-γx²)
+  let g : Fin 3 → ℝ → ℝ := fun j =>
     if j = i then (fun x => x ^ 2 * Real.exp (-γ * x ^ 2))
     else (fun x => Real.exp (-γ * x ^ 2))
   have h_factor (r : ℝ³) : (r i) ^ 2 * Real.exp (-γ * ∑ j : Fin 3, (r j) ^ 2) =
-      ∏ j : Fin 3, f j (r j) := by
-    rw [h_expand r]
-    calc
-      (r i) ^ 2 * ∏ j : Fin 3, Real.exp (-γ * (r j) ^ 2)
-      = ((r i) ^ 2 * Real.exp (-γ * (r i) ^ 2)) *
-          ∏ j ∈ (Finset.univ : Finset (Fin 3)).erase i, Real.exp (-γ * (r j) ^ 2) := by
-        rw [Finset.prod_erase_mul (Finset.univ : Finset (Fin 3))
-          (fun j => Real.exp (-γ * (r j) ^ 2)) i (Finset.mem_univ i)]
-        ring
-      _ = (f i (r i)) * ∏ j ∈ (Finset.univ : Finset (Fin 3)).erase i, f j (r j) := by
-        simp [f]
-      _ = ∏ j : Fin 3, f j (r j) := by
-        simp [f, Finset.prod_erase_mul (Finset.univ : Finset (Fin 3)) f i (Finset.mem_univ i)]
+      ∏ j : Fin 3, g j (r j) := by
+    rw [h_exp_sum r, Fin.prod_univ_three]
+    dsimp [g]
+    -- Now: (r i)^2 * exp₀*exp₁*exp₂ = g₀(r₀)*g₁(r₁)*g₂(r₂)
+    -- Case analysis on i via fin_cases
+    fin_cases i <;> ring
   calc
     (∫ r : ℝ³, (r i) ^ 2 * Real.exp (-γ * ∑ j : Fin 3, (r j) ^ 2))
-    _ = (∫ r : ℝ³, ∏ j : Fin 3, f j (r j)) :=
+    _ = (∫ r : ℝ³, ∏ j : Fin 3, g j (r j)) :=
       integral_congr_ae (by filter_upwards with r; rw [h_factor r])
-    _ = ∏ j : Fin 3, (∫ x : ℝ, f j x) := integral_fintype_prod_volume_eq_prod f
-    _ = (∫ x : ℝ, f i x) * (∏ j ∈ (Finset.univ : Finset (Fin 3)).erase i, (∫ x : ℝ, f j x)) := by
-      rw [Finset.prod_erase_mul (Finset.univ : Finset (Fin 3)) (fun j => ∫ x : ℝ, f j x) i
-        (Finset.mem_univ i)]
+    _ = ∏ j : Fin 3, (∫ x : ℝ, g j x) := integral_fintype_prod_volume_eq_prod g
+    _ = ((∫ x : ℝ, g 0 x) * (∫ x : ℝ, g 1 x) * (∫ x : ℝ, g 2 x)) := by rw [Fin.prod_univ_three]
     _ = (∫ x : ℝ, x ^ 2 * Real.exp (-γ * x ^ 2)) *
         ((∫ x : ℝ, Real.exp (-γ * x ^ 2)) ^ 2) := by
-      have h_fi : f i = (fun x => x ^ 2 * Real.exp (-γ * x ^ 2)) := by
-        ext x; simp [f]
-      have h_fj (j : Fin 3) (hj : j ≠ i) : f j = (fun x => Real.exp (-γ * x ^ 2)) := by
-        ext x; simp [f, hj]
-      simp [h_fi, h_fj]
+      fin_cases i <;> simp [g]
+
+/-- Integrability of r_i²·exp(-γ·Σ_j r_j²) on ℝ³ (factors into product of 1D Gaussians). -/
+lemma integrable_coord_sq_exp_neg_mul_sq_sum (γ : ℝ) (hγ : 0 < γ) (i : Fin 3) :
+    Integrable (fun r : ℝ³ => (r i) ^ 2 * Real.exp (-γ * ∑ j : Fin 3, (r j) ^ 2)) volume := by
+  let g : Fin 3 → ℝ → ℝ := fun j =>
+    if j = i then (fun x => x ^ 2 * Real.exp (-γ * x ^ 2))
+    else (fun x => Real.exp (-γ * x ^ 2))
+  have h_int_g (j : Fin 3) : Integrable (g j) volume := by
+    dsimp [g]; split
+    · have hk : (-1 : ℝ) < (2 : ℝ) := by norm_num
+      have h := integrable_rpow_mul_exp_neg_mul_sq hγ hk
+      simpa [Real.rpow_natCast] using h
+    · exact integrable_exp_neg_mul_sq hγ
+  have h_factor (r : ℝ³) : (r i) ^ 2 * Real.exp (-γ * ∑ j : Fin 3, (r j) ^ 2) =
+      ∏ j : Fin 3, g j (r j) := by
+    have h_exp_sum : Real.exp (-γ * ∑ j : Fin 3, (r j) ^ 2) =
+        Real.exp (-γ * (r 0) ^ 2) * Real.exp (-γ * (r 1) ^ 2) * Real.exp (-γ * (r 2) ^ 2) := by
+      rw [Fin.sum_univ_three, mul_add, Real.exp_add, mul_add, Real.exp_add]
+    rw [h_exp_sum, Fin.prod_univ_three]
+    dsimp [g]
+    fin_cases i <;> simp [Fin.mk.injEq] <;> ring
+  rw [h_factor]
+  exact MeasureTheory.Integrable.fintype_prod h_int_g
 
 /-! ## Kinetic energy integral for s-type GTOs -/
 
@@ -879,46 +891,40 @@ theorem kinetic_primitiveGTO_s_same_center (α β : ℝ) (hα : 0 < α) (hβ : 0
       (α * β / (α + β)) * 3 * (Real.sqrt (π / (α + β))) ^ 3 := by
   have hγpos : α + β > 0 := by linarith
   set γ := α + β with hγ
-  -- T = ½ ∫ ∇φ·∇ψ = ½ ∫ Σ_i ∂ᵢφ·∂ᵢψ
-  -- ∂ᵢφ = -2α·(rᵢ-Rᵢ)·φ,  ∂ᵢψ = -2β·(rᵢ-Rᵢ)·ψ
-  -- So ∇φ·∇ψ = 4αβ·|r-R|²·exp(-γ·|r-R|²)
-  -- T = ½·4αβ·∫ |r-R|²·exp(-γ·|r-R|²) = 2αβ·∫ |r|²·exp(-γ·|r|²)  [translate r→r+R]
-  -- = 2αβ·3·(∫ x²exp(-γx²)dx)·(∫ exp(-γx²)dx)²
-  -- = 2αβ·3·(√(π/γ)/(2γ))·(π/γ) = (3αβ/γ)·(π/γ)^(3/2)
   unfold kinetic
-  -- compute the gradient dot product explicitly
-  have h_deriv (a : ℝ) (r : ℝ³) (i : Fin 3) :
-      (fderiv ℝ (primitiveGTO_s a R) r) (Pi.single i (1 : ℝ)) =
-      (-2 * a) * (r i - R i) * Real.exp (-a * ∑ j : Fin 3, (r j - R j) ^ 2) := by
-    rw [deriv_coord_primitiveGTO_s a R i r]
-    simp [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero, Finset.prod_const_one, one_mul]
-  -- The integrand simplifies to 4αβ·|r-R|²·exp(-γ·|r-R|²)
+  -- Compute the gradient dot product ∇φ·∇ψ = Σᵢ ∂ᵢφ·∂ᵢψ
+  -- ∂ᵢφ = -2α·(rᵢ-Rᵢ)·φ(r),  ∂ᵢψ = -2β·(rᵢ-Rᵢ)·ψ(r)
+  -- So ∇φ·∇ψ = 4αβ·|r-R|²·exp(-γ·|r-R|²)
   have h_grad_dot (r : ℝ³) : (∑ i : Fin 3,
       (fderiv ℝ (primitiveGTO_s α R) r (Pi.single i 1)) *
       (fderiv ℝ (primitiveGTO_s β R) r (Pi.single i 1))) =
       4 * α * β * (∑ i : Fin 3, (r i - R i) ^ 2) *
         Real.exp (-γ * ∑ i : Fin 3, (r i - R i) ^ 2) := by
+    have h_deriv (a : ℝ) (r' : ℝ³) (i : Fin 3) :
+        (fderiv ℝ (primitiveGTO_s a R) r') (Pi.single i (1 : ℝ)) =
+        (-2 * a) * (r' i - R i) * Real.exp (-a * ∑ j : Fin 3, (r' j - R j) ^ 2) := by
+      rw [deriv_coord_primitiveGTO_s a R i r']
+      simp [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero, Finset.prod_const_one, one_mul]
     simp_rw [h_deriv α r, h_deriv β r]
     calc
       (∑ i : Fin 3, ((-2 * α) * (r i - R i) * Real.exp (-α * ∑ j, (r j - R j) ^ 2)) *
         ((-2 * β) * (r i - R i) * Real.exp (-β * ∑ j, (r j - R j) ^ 2)))
-      = (∑ i : Fin 3, (r i - R i) ^ 2) * ((-2 * α) * Real.exp (-α * ∑ j, (r j - R j) ^ 2) *
-          ((-2 * β) * Real.exp (-β * ∑ j, (r j - R j) ^ 2))) := by
-        simp only [Finset.mul_sum]; ring
-      _ = (∑ i : Fin 3, (r i - R i) ^ 2) * (4 * α * β *
-          (Real.exp (-α * ∑ j, (r j - R j) ^ 2) * Real.exp (-β * ∑ j, (r j - R j) ^ 2))) := by ring
+      = (∑ i : Fin 3, (r i - R i) ^ 2) * (4 * α * β *
+          Real.exp (-α * ∑ j, (r j - R j) ^ 2) * Real.exp (-β * ∑ j, (r j - R j) ^ 2)) := by
+        simp [Finset.mul_sum]; ring
       _ = 4 * α * β * (∑ i : Fin 3, (r i - R i) ^ 2) *
           Real.exp (-(α + β) * ∑ j : Fin 3, (r j - R j) ^ 2) := by
-        rw [← Real.exp_add]; ring
-      _ = _ := by rw [hγ]
+        rw [mul_add, Real.exp_add, mul_assoc]; ring
+      _ = 4 * α * β * (∑ i : Fin 3, (r i - R i) ^ 2) *
+          Real.exp (-γ * ∑ i : Fin 3, (r i - R i) ^ 2) := by rw [hγ]
   rw [integral_congr_ae (by filter_upwards with r; rw [h_grad_dot r])]
-  -- Pull out the constant factor
-  rw [show (fun r : ℝ³ => 4 * α * β * (∑ i : Fin 3, (r i - R i) ^ 2) *
+  -- Pull out constant factor 4αβ
+  have h_factor : (fun r : ℝ³ => 4 * α * β * (∑ i : Fin 3, (r i - R i) ^ 2) *
       Real.exp (-γ * ∑ i : Fin 3, (r i - R i) ^ 2)) =
       (fun r : ℝ³ => (4 * α * β) * ((∑ i : Fin 3, (r i - R i) ^ 2) *
-        Real.exp (-γ * ∑ i : Fin 3, (r i - R i) ^ 2))) by
-    ext r; ring]
-  rw [integral_const_mul (4 * α * β)]
+        Real.exp (-γ * ∑ i : Fin 3, (r i - R i) ^ 2))) := by
+    ext r; ring
+  rw [h_factor, integral_const_mul (4 * α * β)]
   -- Translate r ↦ r + R
   have h_trans : (∫ r : ℝ³, (∑ i : Fin 3, (r i - R i) ^ 2) *
       Real.exp (-γ * ∑ i : Fin 3, (r i - R i) ^ 2)) =
@@ -927,88 +933,28 @@ theorem kinetic_primitiveGTO_s_same_center (α β : ℝ) (hα : 0 < α) (hβ : 0
       (fun r : ℝ³ => (∑ i : Fin 3, (r i) ^ 2) * Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2)) R
     simpa [Pi.sub_apply] using h
   rw [h_trans]
-  -- Compute I = ∫ |r|²·exp(-γ|r|²) directly using 1D Gaussian formulas
-  -- |r|²·exp(-γ|r|²) = Σᵢ rᵢ²·∏ⱼ exp(-γ·rⱼ²) = Σᵢ (∏ⱼ fᵢⱼ(rⱼ)) where fᵢᵢ(x)=x²·exp(-γx²), fᵢⱼ(x)=exp(-γx²) for j≠i
-  -- Each term integrates to (∫x²·exp(-γx²)dx)·(∫exp(-γx²)dx)², and sum over i = 3 terms
-  -- So I = 3·(∫x²·exp(-γx²)dx)·(∫exp(-γx²)dx)²
-  have hI1_1d : (∫ x : ℝ, Real.exp (-γ * x ^ 2)) = Real.sqrt (π / γ) := integral_gaussian γ
-  have hI2_1d : (∫ x : ℝ, x ^ 2 * Real.exp (-γ * x ^ 2)) = (Real.sqrt (π / γ)) / (2 * γ) := by
+  -- |r|² = Σᵢ rᵢ², split into sum of 3 coordinate integrals
+  rw [show (fun r : ℝ³ => (∑ i : Fin 3, (r i) ^ 2) * Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2)) =
+      (fun r : ℝ³ => ∑ i : Fin 3, (r i) ^ 2 * Real.exp (-γ * ∑ j : Fin 3, (r j) ^ 2)) by
+    ext r; ring]
+  rw [integral_finset_sum _ (fun i _ => integrable_coord_sq_exp_neg_mul_sq_sum γ hγpos i)]
+  simp_rw [integral_coord_sq_exp_neg_mul_sq_sum_3d γ hγpos]
+  simp [Fin.sum_univ_three]
+  -- Now: (1/2)·4αβ · 3 · (∫ x²·exp(-γx²)) · (∫ exp(-γx²))²
+  have hI0 : (∫ x : ℝ, Real.exp (-γ * x ^ 2)) = Real.sqrt (π / γ) := integral_gaussian γ
+  have hI2 : (∫ x : ℝ, x ^ 2 * Real.exp (-γ * x ^ 2)) = (Real.sqrt (π / γ)) / (2 * γ) := by
     rw [integral_gaussian_moment_1d 2 γ hγpos]
     simp [gaussianMoment, show (2 : ℕ) % 2 = 0 by decide, show (2 : ℕ) / 2 = 1 by decide]
     ring
-  -- Factor the 3D integral into 1D products using explicit coordinate expansion
-  rw [Fin.sum_univ_three]
-  -- Σᵢ rᵢ² = r₀² + r₁² + r₂², and the integral splits into sum of 3 integrals
-  rw [show (fun r : ℝ³ => ((r 0) ^ 2 + (r 1) ^ 2 + (r 2) ^ 2) *
-      Real.exp (-γ * ((r 0) ^ 2 + (r 1) ^ 2 + (r 2) ^ 2))) =
-      (fun r => (r 0) ^ 2 * Real.exp (-γ * ((r 0) ^ 2 + (r 1) ^ 2 + (r 2) ^ 2)) +
-        (r 1) ^ 2 * Real.exp (-γ * ((r 0) ^ 2 + (r 1) ^ 2 + (r 2) ^ 2)) +
-        (r 2) ^ 2 * Real.exp (-γ * ((r 0) ^ 2 + (r 1) ^ 2 + (r 2) ^ 2))) by
-    ext r; ring]
-  rw [integral_add]
-  · rw [integral_add]
-    · -- Three integrals, each = I₂₁D * I₀₁D * I₀₁D
-      -- Use factoring lemma integral_fintype_prod_volume_eq_prod for each
-      have h_coord (i : Fin 3) : (∫ r : ℝ³, (r i) ^ 2 *
-          Real.exp (-γ * ((r 0) ^ 2 + (r 1) ^ 2 + (r 2) ^ 2))) =
-          (∫ x : ℝ, x ^ 2 * Real.exp (-γ * x ^ 2)) *
-          ((∫ x : ℝ, Real.exp (-γ * x ^ 2)) ^ 2) := by
-        -- Use integral_fintype_prod_volume_eq_prod with function family
-        have h_exp_prod (r : ℝ³) : Real.exp (-γ * ((r 0) ^ 2 + (r 1) ^ 2 + (r 2) ^ 2)) =
-            Real.exp (-γ * (r 0) ^ 2) * Real.exp (-γ * (r 1) ^ 2) * Real.exp (-γ * (r 2) ^ 2) := by
-          rw [Real.exp_add, Real.exp_add]; ring
-        -- The integrand (rᵢ)² * ∏ⱼ exp(-γ·rⱼ²) factors as a product of 1D functions
-        -- Build the family: g_j(x) = x²·exp(-γx²) if j=i, else exp(-γx²)
-        let g : Fin 3 → ℝ → ℝ := fun j =>
-          if j = i then (fun x => x ^ 2 * Real.exp (-γ * x ^ 2))
-          else (fun x => Real.exp (-γ * x ^ 2))
-        have h_gprod (r : ℝ³) : (r i) ^ 2 * Real.exp (-γ * ((r 0) ^ 2 + (r 1) ^ 2 + (r 2) ^ 2)) =
-            (g 0 (r 0)) * (g 1 (r 1)) * (g 2 (r 2)) := by
-          rw [h_exp_prod r]
-          -- Split (r i)^2 into the product at position i
-          fin_cases i <;> simp [g] <;> ring
-        -- Convert to product form
-        have h_prod_form (r : ℝ³) : (r i) ^ 2 * Real.exp (-γ * ((r 0) ^ 2 + (r 1) ^ 2 + (r 2) ^ 2)) =
-            ∏ j : Fin 3, g j (r j) := by
-          rw [h_gprod r, Fin.prod_univ_three]; rfl
-        -- Now use Fubini factorization
-        calc
-          (∫ r : ℝ³, (r i) ^ 2 * Real.exp (-γ * ((r 0) ^ 2 + (r 1) ^ 2 + (r 2) ^ 2)))
-          = (∫ r : ℝ³, ∏ j : Fin 3, g j (r j)) :=
-            integral_congr_ae (by filter_upwards with r; rw [h_prod_form r])
-          _ = ∏ j : Fin 3, (∫ x : ℝ, g j x) := integral_fintype_prod_volume_eq_prod g
-          _ = ((∫ x : ℝ, g 0 x) * (∫ x : ℝ, g 1 x) * (∫ x : ℝ, g 2 x)) := rfl
-          _ = (∫ x : ℝ, x ^ 2 * Real.exp (-γ * x ^ 2)) *
-              ((∫ x : ℝ, Real.exp (-γ * x ^ 2)) ^ 2) := by
-            fin_cases i <;> simp [g]
-      simp_rw [h_coord 0, h_coord 1, h_coord 2]
-      ring
-    · -- integrability for second term
-      have h_int (i : Fin 3) : Integrable (fun r : ℝ³ => (r i) ^ 2 *
-          Real.exp (-γ * ((r 0) ^ 2 + (r 1) ^ 2 + (r 2) ^ 2))) volume := by
-        -- Factor as product of integrable 1D functions
-        let g : Fin 3 → ℝ → ℝ := fun j =>
-          if j = i then (fun x => x ^ 2 * Real.exp (-γ * x ^ 2))
-          else (fun x => Real.exp (-γ * x ^ 2))
-        have h_int_g (j : Fin 3) : Integrable (g j) volume := by
-          dsimp [g]; split
-          · have hk : (-1 : ℝ) < (2 : ℝ) := by norm_num
-            have h := integrable_rpow_mul_exp_neg_mul_sq hγpos hk
-            simpa [Real.rpow_natCast] using h
-          · exact integrable_exp_neg_mul_sq hγpos
-        have h_factor (r : ℝ³) : (r i) ^ 2 * Real.exp (-γ * ((r 0) ^ 2 + (r 1) ^ 2 + (r 2) ^ 2)) =
-            ∏ j : Fin 3, g j (r j) := by
-          have h_exp := h_coord_prod i r  -- need to define this
-          sorry
-        rw [h_factor]
-        exact MeasureTheory.Integrable.fintype_prod h_int_g
-      sorry
-    · -- integrability for third term
-      sorry
-  · -- integrability for first term
-    sorry
-  · -- integrability for sum of second+third
-    sorry
+  rw [hI2, hI0]
+  -- = (αβ/(α+β)) · 3 · (√(π/(α+β)))³
+  have h_sq_sqrt : (Real.sqrt (π / γ)) ^ 2 = π / γ :=
+    Real.sq_sqrt (div_nonneg (by positivity) (by linarith))
+  rw [h_sq_sqrt]
+  show (1/2 : ℝ) * (4 * α * β * (3 * ((Real.sqrt (π / γ)) / (2 * γ) * (π / γ)))) =
+      (α * β / γ) * 3 * (Real.sqrt (π / γ)) ^ 3
+  field_simp [hγpos.ne.symm]
+  ring
 
 /-- The kinetic energy integral for two different-center s-type primitive GTOs:
   `T = (αβ/(α+β)) · (3 - 2αβ/(α+β) · ‖R₁-R₂‖²) · S(R₁,R₂)`,
