@@ -29,6 +29,7 @@ angular momentum but have different exponents and coefficients.
 
 -/
 
+namespace GTO
 
 notation (name := R3) "ℝ³" => Fin 3 → ℝ
 
@@ -758,7 +759,7 @@ theorem overlap_primitiveGTO (α β : ℝ) (hpos : α + β > 0) (R₁ R₂ : ℝ
   dsimp [γ] at h_one_axis
   simpa using h_one_axis
 
-theorem kinetic_primitiveGTO_s_same_center (α β : ℝ) (_ : α + β ≠ 0) (R : ℝ³) :
+theorem kinetic_primitiveGTO_s_same_center (α β : ℝ) (hα : 0 < α) (hβ : 0 < β) (R : ℝ³) :
     kinetic (primitiveGTO_s α R) (primitiveGTO_s β R) =
       (α * β / (α + β)) * 3 * (Real.sqrt (π / (α + β))) ^ 3 := by
   sorry
@@ -766,7 +767,7 @@ theorem kinetic_primitiveGTO_s_same_center (α β : ℝ) (_ : α + β ≠ 0) (R 
 /-- The kinetic energy integral for two different-center s-type primitive GTOs:
   `T = (αβ/(α+β)) · (3 - 2αβ/(α+β) · ‖R₁-R₂‖²) · S(R₁,R₂)`,
 where `S(R₁,R₂)` is the corresponding overlap. -/
-theorem kinetic_primitiveGTO_s_diff_center (α β : ℝ) (hαβ : α + β ≠ 0) (R₁ R₂ : ℝ³) :
+theorem kinetic_primitiveGTO_s_diff_center (α β : ℝ) (hα : 0 < α) (hβ : 0 < β) (R₁ R₂ : ℝ³) :
     kinetic (primitiveGTO_s α R₁) (primitiveGTO_s β R₂) =
       (α * β / (α + β)) *
         (3 - 2 * α * β / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
@@ -809,3 +810,5 @@ theorem electronRepulsion_primitiveGTO_s
             ((α₁ * R₁ i + α₂ * R₂ i) / (α₁ + α₂) -
              (α₃ * R₃ i + α₄ * R₄ i) / (α₃ + α₄)) ^ 2) := by
   sorry
+
+end GTO
