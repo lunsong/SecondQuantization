@@ -1,4 +1,3 @@
-import SecondQuantization.Basic
 import Mathlib.Analysis.SpecialFunctions.Gaussian.GaussianIntegral
 import Mathlib.MeasureTheory.Integral.Pi
 import Mathlib.MeasureTheory.Constructions.Pi
@@ -30,7 +29,8 @@ angular momentum but have different exponents and coefficients.
 
 -/
 
-namespace Fock
+
+notation (name := R3) "ℝ³" => Fin 3 → ℝ
 
 open Real MeasureTheory
 
@@ -680,10 +680,85 @@ theorem overlap_primitiveGTO_diff_center_expanded (α β : ℝ) (hαβ : α + β
             (((α * R₁ i + β * R₂ i) / (α + β) - R₁ i) ^ (l i - p)) *
             (((α * R₁ i + β * R₂ i) / (α + β) - R₂ i) ^ (m i - q)) *
             gaussianMoment (p + q) (α + β)) := by
-  sorry
+  rw [overlap_primitiveGTO_diff_center α β hαβ R₁ R₂ l m]
+  congr 1
+  refine Finset.prod_congr rfl (fun i _ => ?_)
+  let γ := α + β
+  have hγpos : γ > 0 := hpos
+  have hint (k : ℕ) : Integrable (fun x : ℝ => x ^ k * Real.exp (-γ * x ^ 2)) volume := by
+    have hk : (-1 : ℝ) < (k : ℝ) := by
+      have hk' : (0 : ℝ) ≤ (k : ℝ) := Nat.cast_nonneg _
+      linarith
+    have h := integrable_rpow_mul_exp_neg_mul_sq hγpos hk
+    simpa [Real.rpow_natCast] using h
+  have h_one_axis :
+      (∫ x : ℝ,
+        (x + (α * R₁ i + β * R₂ i) / (α + β) - R₁ i) ^ (l i) *
+        (x + (α * R₁ i + β * R₂ i) / (α + β) - R₂ i) ^ (m i) *
+        Real.exp (-γ * x ^ 2)) =
+      (∑ p ∈ Finset.range (l i + 1), ∑ q ∈ Finset.range (m i + 1),
+        ((l i).choose p : ℝ) * ((m i).choose q : ℝ) *
+        (((α * R₁ i + β * R₂ i) / (α + β) - R₁ i) ^ (l i - p)) *
+        (((α * R₁ i + β * R₂ i) / (α + β) - R₂ i) ^ (m i - q)) *
+        gaussianMoment (p + q) γ) := by
+    set A := (α * R₁ i + β * R₂ i) / (α + β) - R₁ i with hA
+    set B := (α * R₁ i + β * R₂ i) / (α + β) - R₂ i with hB
+    have h_poly (x : ℝ) : (x + A) ^ (l i) * (x + B) ^ (m i) =
+        ∑ p ∈ Finset.range (l i + 1), ∑ q ∈ Finset.range (m i + 1),
+          (((l i).choose p : ℝ) * ((m i).choose q : ℝ) *
+            A ^ (l i - p) * B ^ (m i - q)) * x ^ (p + q) := by
+      rw [add_pow, add_pow]
+      simp_rw [Finset.sum_mul]
+      refine Finset.sum_congr rfl (fun p _ => ?_)
+      simp_rw [Finset.mul_sum]
+      refine Finset.sum_congr rfl (fun q _ => ?_)
+      ring
+    have hint' (k : ℕ) (C : ℝ) :
+        Integrable (fun x : ℝ => C * (x ^ k * Real.exp (-γ * x ^ 2))) volume :=
+      (hint k).const_mul C
+    have h_integrand : (fun x : ℝ => (x + A) ^ (l i) * (x + B) ^ (m i) * Real.exp (-γ * x ^ 2)) =
+        (fun x : ℝ => ∑ p ∈ Finset.range (l i + 1), ∑ q ∈ Finset.range (m i + 1),
+          (((l i).choose p : ℝ) * ((m i).choose q : ℝ) *
+            A ^ (l i - p) * B ^ (m i - q)) * (x ^ (p + q) * Real.exp (-γ * x ^ 2))) := by
+      ext x
+      calc
+        (x + A) ^ (l i) * (x + B) ^ (m i) * Real.exp (-γ * x ^ 2) =
+            ((x + A) ^ (l i) * (x + B) ^ (m i)) * Real.exp (-γ * x ^ 2) := by ring
+        _ = (∑ p ∈ Finset.range (l i + 1), ∑ q ∈ Finset.range (m i + 1),
+              (((l i).choose p : ℝ) * ((m i).choose q : ℝ) *
+                A ^ (l i - p) * B ^ (m i - q)) * x ^ (p + q)) *
+            Real.exp (-γ * x ^ 2) := by rw [h_poly x]
+        _ = ∑ p ∈ Finset.range (l i + 1), ∑ q ∈ Finset.range (m i + 1),
+              (((l i).choose p : ℝ) * ((m i).choose q : ℝ) *
+                A ^ (l i - p) * B ^ (m i - q)) * (x ^ (p + q) * Real.exp (-γ * x ^ 2)) := by
+          simp [Finset.sum_mul, mul_assoc]
+    have h_rewrite_AB : (fun x : ℝ =>
+        (x + (α * R₁ i + β * R₂ i) / (α + β) - R₁ i) ^ (l i) *
+        (x + (α * R₁ i + β * R₂ i) / (α + β) - R₂ i) ^ (m i) *
+        Real.exp (-γ * x ^ 2)) =
+        (fun x : ℝ => (x + A) ^ (l i) * (x + B) ^ (m i) * Real.exp (-γ * x ^ 2)) := by
+      ext x; dsimp [A, B]; ring
+    rw [h_rewrite_AB, h_integrand]
+    rw [integral_finset_sum (Finset.range (l i + 1))
+      (f := fun p x => ∑ q ∈ Finset.range (m i + 1),
+        (((l i).choose p : ℝ) * ((m i).choose q : ℝ) *
+          A ^ (l i - p) * B ^ (m i - q)) * (x ^ (p + q) * Real.exp (-γ * x ^ 2)))
+      (fun p _ => integrable_finset_sum (Finset.range (m i + 1))
+        (fun q _ => hint' (p + q) (((l i).choose p : ℝ) * ((m i).choose q : ℝ) *
+          A ^ (l i - p) * B ^ (m i - q))))]
+    refine Finset.sum_congr rfl (fun p _ => ?_)
+    rw [integral_finset_sum (Finset.range (m i + 1))
+      (f := fun q x => (((l i).choose p : ℝ) * ((m i).choose q : ℝ) *
+        A ^ (l i - p) * B ^ (m i - q)) * (x ^ (p + q) * Real.exp (-γ * x ^ 2)))
+      (fun q _ => hint' (p + q) (((l i).choose p : ℝ) * ((m i).choose q : ℝ) *
+        A ^ (l i - p) * B ^ (m i - q)))]
+    refine Finset.sum_congr rfl (fun q _ => ?_)
+    rw [integral_const_mul (((l i).choose p : ℝ) * ((m i).choose q : ℝ) *
+      A ^ (l i - p) * B ^ (m i - q)),
+      integral_gaussian_moment_1d (p + q) γ hγpos]
+  dsimp [γ] at h_one_axis
+  simpa using h_one_axis
 
-/-- The kinetic energy integral for two same-center s-type primitive GTOs:
-  `T = αβ/(α+β) · 3 · (√(π/(α+β)))^3`. -/
 theorem kinetic_primitiveGTO_s_same_center (α β : ℝ) (_ : α + β ≠ 0) (R : ℝ³) :
     kinetic (primitiveGTO_s α R) (primitiveGTO_s β R) =
       (α * β / (α + β)) * 3 * (Real.sqrt (π / (α + β))) ^ 3 := by
@@ -735,5 +810,3 @@ theorem electronRepulsion_primitiveGTO_s
             ((α₁ * R₁ i + α₂ * R₂ i) / (α₁ + α₂) -
              (α₃ * R₃ i + α₄ * R₄ i) / (α₃ + α₄)) ^ 2) := by
   sorry
-
-end Fock
