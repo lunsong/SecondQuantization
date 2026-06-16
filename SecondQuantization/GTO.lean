@@ -1411,8 +1411,7 @@ theorem nuclearAttraction_primitiveGTO_s
   `P = (α₁R₁+α₂R₂)/(α₁+α₂)`, `Q = (α₃R₃+α₄R₄)/(α₃+α₄)`, `p = α₁+α₂`, `q = α₃+α₄`, the closed
 form involves the zeroth Boys function evaluated at `pq/(p+q) · ‖P-Q‖²`. -/
 theorem electronRepulsion_primitiveGTO_s
-    (α₁ α₂ α₃ α₄ : ℝ) (_ : α₁ + α₂ ≠ 0) (_ : α₃ + α₄ ≠ 0)
-    (_ : (α₁ + α₂) + (α₃ + α₄) ≠ 0)
+    (α₁ α₂ α₃ α₄ : ℝ) (hα₁ : 0 < α₁) (hα₂ : 0 < α₂) (hα₃ : 0 < α₃) (hα₄ : 0 < α₄)
     (R₁ R₂ R₃ R₄ : ℝ³) :
     electronRepulsion (primitiveGTO_s α₁ R₁) (primitiveGTO_s α₂ R₂)
         (primitiveGTO_s α₃ R₃) (primitiveGTO_s α₄ R₄) =
