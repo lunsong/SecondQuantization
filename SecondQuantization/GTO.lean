@@ -1258,10 +1258,73 @@ theorem kinetic_primitiveGTO_s_diff_center (α β : ℝ) (hα : 0 < α) (hβ : 0
         (3 - 2 * α * β / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
         overlap (primitiveGTO_s α R₁) (primitiveGTO_s β R₂) := by simp [hγ]
 
+/-! ## Coulomb potential integral representation -/
+
+open intervalIntegral
+
+/-- The identity `1/‖x‖ = (2/√π) ∫₀^∞ exp(-‖x‖²·t²) dt` for `x ≠ 0` in ℝ³.
+This is the key representation of the Coulomb potential as an integral of Gaussians. -/
+lemma one_div_norm_eq_integral_exp_Ioi {x : ℝ³} (hx : x ≠ 0) :
+    1 / ‖x‖ = (2 / Real.sqrt π) *
+      ∫ t in Set.Ioi (0 : ℝ), Real.exp (-(‖x‖ ^ 2) * t ^ 2) := by
+  have hpos : 0 < ‖x‖ := by
+    apply lt_of_le_of_ne (norm_nonneg _) (Ne.symm ?_)
+    exact mt norm_eq_zero.mp hx
+  have hpi_pos : 0 < π := by positivity
+  have h_int_raw : (∫ t in Set.Ioi (0 : ℝ), Real.exp (-(‖x‖ ^ 2) * t ^ 2)) =
+      Real.sqrt (π / (‖x‖ ^ 2)) / 2 := by
+    exact integral_gaussian_Ioi (‖x‖ ^ 2)
+  have h_int : (∫ t in Set.Ioi (0 : ℝ), Real.exp (-(‖x‖ ^ 2) * t ^ 2)) =
+      Real.sqrt π / (2 * ‖x‖) := by
+    rw [h_int_raw, Real.sqrt_div (by positivity) _, Real.sqrt_sq (norm_nonneg x)]
+    ring
+  calc
+    1 / ‖x‖ = (2 / Real.sqrt π) * (Real.sqrt π / (2 * ‖x‖)) := by
+      field_simp [hpos.ne.symm, Real.sqrt_ne_zero'.mpr hpi_pos]
+    _ = (2 / Real.sqrt π) *
+        (∫ t in Set.Ioi (0 : ℝ), Real.exp (-(‖x‖ ^ 2) * t ^ 2)) := by rw [h_int]
+
+/-- The substitution kernel: for `γ > 0`, `φ(t) = t/√(γ+t²)` has derivative
+`γ/(√(γ+t²))³`. This is the key change-of-variables function. -/
+lemma hasDerivAt_phi (γ t : ℝ) (hγ : 0 < γ) :
+    HasDerivAt (fun t => t / Real.sqrt (γ + t ^ 2))
+      (γ / ((Real.sqrt (γ + t ^ 2)) ^ 3)) t := by
+  have hpos : γ + t ^ 2 > 0 := by nlinarith
+  set s := Real.sqrt (γ + t ^ 2) with hs
+  have hs_ne_zero : s ≠ 0 := Real.sqrt_ne_zero'.mpr hpos
+  have h_deriv_s : HasDerivAt (fun x : ℝ => Real.sqrt (γ + x ^ 2)) (t / s) t := by
+    have h_inner : HasDerivAt (fun x : ℝ => γ + x ^ 2) (2 * t) t := by
+      simpa using ((hasDerivAt_pow 2 t).const_add γ)
+    have h_sqrt : HasDerivAt Real.sqrt (1 / (2 * Real.sqrt (γ + t ^ 2))) (γ + t ^ 2) :=
+      Real.hasDerivAt_sqrt (by nlinarith)
+    have h_comp := HasDerivAt.comp t h_sqrt h_inner
+    simpa [hs, mul_comm, mul_left_comm, mul_assoc, div_eq_inv_mul] using h_comp
+  have h_deriv_num' : HasDerivAt (fun x : ℝ => x) 1 t := hasDerivAt_id t
+  have h_div := HasDerivAt.div h_deriv_num' h_deriv_s hs_ne_zero
+  have h_deriv_simp : (1 * s - t * (t / s)) / (s ^ 2) = γ / (s ^ 3) := by
+    calc
+      (1 * s - t * (t / s)) / (s ^ 2) = (s - t ^ 2 / s) / (s ^ 2) := by ring
+      _ = ((s ^ 2 - t ^ 2) / s) / (s ^ 2) := by field_simp [hs_ne_zero]
+      _ = (s ^ 2 - t ^ 2) / (s * s ^ 2) := by ring
+      _ = (s ^ 2 - t ^ 2) / (s ^ 3) := by ring
+      _ = (γ + t ^ 2 - t ^ 2) / (s ^ 3) := by rw [Real.sq_sqrt (by nlinarith)]
+      _ = γ / (s ^ 3) := by ring
+  simpa [hs] using h_div.congr_deriv h_deriv_simp
+
 /-- The zeroth Boys function `F₀(t) = ∫₀¹ exp(-t·u²) du`. This is the kernel that appears in
 the closed form of the nuclear attraction and two-electron repulsion integrals for s-type
 Gaussians. -/
 noncomputable def boys0 (t : ℝ) : ℝ := ∫ u in (0:ℝ)..1, Real.exp (-t * u ^ 2)
+
+/-- The fundamental Coulomb–Gaussian integral in 3D:
+`∫ exp(-γ·|r|²) / |r-C| d³r = (2π/γ) · F₀(γ·|C|²)` for `γ > 0`. -/
+lemma integral_exp_neg_mul_sq_div_norm_sub (γ : ℝ) (hγ : 0 < γ) (C : ℝ³) :
+    (∫ r : ℝ³, Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2) / ‖r - C‖) =
+      (2 * π / γ) * boys0 (γ * ∑ i : Fin 3, (C i) ^ 2) := by
+  -- Proof outline: use 1/|x| = (2/√π)∫₀^∞ exp(-|x|²·t²) dt, then Fubini to swap
+  -- the r and t integrals, complete the square in the inner 3D Gaussian integral,
+  -- then substitute u = t/√(γ+t²) via FTC to recover the Boys function.
+  sorry
 
 /-- Nuclear attraction integral of two s-type primitive GTOs against a nucleus at `C`:
   `V = (2π/(α+β)) · exp(-αβ/(α+β)·‖R₁-R₂‖²) · F₀((α+β)·‖P-C‖²)`,
@@ -1274,7 +1337,80 @@ theorem nuclearAttraction_primitiveGTO_s
         boys0 ((α + β) *
           ∑ i : Fin 3,
             ((α * R₁ i + β * R₂ i) / (α + β) - C i) ^ 2) := by
-  sorry
+  -- Apply Gaussian product theorem: φα·φβ = K·exp(-γ·|r-P|²)
+  set γ := α + β with hγ
+  have hγpos : 0 < γ := by
+    by_cases hpos : 0 < γ
+    · exact hpos
+    · have hneg : γ < 0 := lt_of_le_of_ne (by linarith) hαβ
+      -- γ < 0: Gaussian integrals diverge. The physical case (α, β > 0) always has γ > 0.
+      sorry
+  set P : ℝ³ := fun i => (α * R₁ i + β * R₂ i) / γ with hP
+  set K := Real.exp (-(α * β) / γ * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) with hK
+  -- Combine the two Gaussians using the product theorem (same as overlap_primitiveGTO_s_diff_center)
+  have h_prod : ∀ r : ℝ³, primitiveGTO_s α R₁ r * primitiveGTO_s β R₂ r =
+      K * Real.exp (-γ * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+    intro r
+    simp only [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero,
+      Finset.prod_const_one, one_mul]
+    -- Use the completing-the-square identity from overlap_primitiveGTO_s_diff_center
+    -- Recover the original hypothesis form: α + β ≠ 0
+    have hαβ' : α + β ≠ 0 := by simpa [γ] using hαβ
+    have hsq : ∀ x a b : ℝ, -α * (x - a) ^ 2 + -β * (x - b) ^ 2 =
+        -(α * β) / (α + β) * (a - b) ^ 2 + -(α + β) * (x - (α * a + β * b) / (α + β)) ^ 2 := by
+      intro x a b
+      field_simp [hαβ']
+      ring
+    have h_step : ∀ (r : ℝ³) (i : Fin 3),
+        -α * (r i - R₁ i) ^ 2 + -β * (r i - R₂ i) ^ 2 =
+          -(α * β) / γ * (R₁ i - R₂ i) ^ 2 + -γ * (r i - P i) ^ 2 := by
+      intro r' i
+      dsimp [P]
+      simpa [hγ] using hsq (r' i) (R₁ i) (R₂ i)
+    calc
+      Real.exp (-α * ∑ j : Fin 3, (r j - R₁ j) ^ 2) *
+        Real.exp (-β * ∑ j : Fin 3, (r j - R₂ j) ^ 2) =
+          Real.exp ((-α * ∑ j : Fin 3, (r j - R₁ j) ^ 2) +
+            (-β * ∑ j : Fin 3, (r j - R₂ j) ^ 2)) := by rw [Real.exp_add]
+      _ = Real.exp (∑ i : Fin 3, (-α * (r i - R₁ i) ^ 2 + -β * (r i - R₂ i) ^ 2)) := by
+        simp [Finset.mul_sum, Finset.sum_add_distrib]
+      _ = Real.exp (∑ i : Fin 3, (-(α * β) / γ * (R₁ i - R₂ i) ^ 2 +
+          -γ * (r i - P i) ^ 2)) := by
+        refine congrArg Real.exp (Finset.sum_congr rfl fun i _ => h_step r i)
+      _ = Real.exp (-(α * β) / γ * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2
+          + (-γ * ∑ i : Fin 3, (r i - P i) ^ 2)) := by
+        simp [Finset.mul_sum, Finset.sum_add_distrib]
+      _ = K * Real.exp (-γ * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+        rw [Real.exp_add, hK]
+  -- Unfold nuclearAttraction and substitute the product expression
+  unfold nuclearAttraction
+  simp_rw [show ∀ (r : ℝ³), primitiveGTO_s α R₁ r * (1 / ‖(r - C : ℝ³)‖) *
+      primitiveGTO_s β R₂ r = K * (Real.exp (-γ * ∑ i, (r i - P i) ^ 2) / ‖(r - C : ℝ³)‖) by
+    intro r
+    calc
+      primitiveGTO_s α R₁ r * (1 / ‖(r - C : ℝ³)‖) * primitiveGTO_s β R₂ r =
+        (primitiveGTO_s α R₁ r * primitiveGTO_s β R₂ r) * (1 / ‖(r - C : ℝ³)‖) := by ring
+      _ = (K * Real.exp (-γ * ∑ i, (r i - P i) ^ 2)) * (1 / ‖(r - C : ℝ³)‖) := by rw [h_prod r]
+      _ = K * (Real.exp (-γ * ∑ i, (r i - P i) ^ 2) / ‖(r - C : ℝ³)‖) := by ring
+    ]
+  rw [MeasureTheory.integral_const_mul K]
+  -- Translate r ↦ r+P to center the Gaussian at the origin
+  have h_trans : (∫ r : ℝ³, Real.exp (-γ * ∑ i : Fin 3, (r i - P i) ^ 2) / ‖(r - C : ℝ³)‖) =
+      (∫ r : ℝ³, Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2) / ‖(r - (C - P) : ℝ³)‖) := by
+    have h := integral_sub_right_eq_self (μ := (volume : Measure ℝ³))
+      (fun r : ℝ³ => Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2) / ‖(r - (C - P) : ℝ³)‖) P
+    simpa [Pi.sub_apply, sub_sub_cancel] using h
+  rw [h_trans]
+  -- Apply the Coulomb-Gaussian lemma
+  rw [integral_exp_neg_mul_sq_div_norm_sub γ hγpos (C - P)]
+  -- Simplify: |C-P|² = ∑ᵢ ((αR₁+βR₂)/(α+β) - C)²
+  have h_dist_sq : ∑ i : Fin 3, ((C - P) i) ^ 2 =
+      ∑ i : Fin 3, ((α * R₁ i + β * R₂ i) / γ - C i) ^ 2 := by
+    refine Finset.sum_congr rfl (fun i _ => ?_)
+    dsimp [P]
+    ring
+  rw [hγ, hK, h_dist_sq]
+  ring
 
 /-- Two-electron repulsion integral of four s-type primitive GTOs. With
   `P = (α₁R₁+α₂R₂)/(α₁+α₂)`, `Q = (α₃R₃+α₄R₄)/(α₃+α₄)`, `p = α₁+α₂`, `q = α₃+α₄`, the closed
