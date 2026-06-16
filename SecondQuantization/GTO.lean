@@ -1316,14 +1316,130 @@ the closed form of the nuclear attraction and two-electron repulsion integrals f
 Gaussians. -/
 noncomputable def boys0 (t : ℝ) : ℝ := ∫ u in (0:ℝ)..1, Real.exp (-t * u ^ 2)
 
+/-- For γ > 0 and any a : ℝ (with a ≥ 0 for the intended application), the substitution
+u = t/√(γ+t²) gives ∫₀^∞ exp(-a·t²/(γ+t²)) · γ/(γ+t²)^(3/2) dt = boys0 a. -/
+lemma integral_phi_deriv_exp_neg_sq_Ioi (γ a : ℝ) (hγ : 0 < γ) :
+    ∫ t in Set.Ioi (0 : ℝ),
+      Real.exp (-a * (t ^ 2 / (γ + t ^ 2))) * (γ / ((Real.sqrt (γ + t ^ 2)) ^ 3)) =
+    boys0 a := by
+  set φ := fun t : ℝ => t / Real.sqrt (γ + t ^ 2) with hφ
+  have hφ_deriv (t : ℝ) : HasDerivAt φ (γ / ((Real.sqrt (γ + t ^ 2)) ^ 3)) t :=
+    hasDerivAt_phi γ t hγ
+  have hg : Continuous fun u : ℝ => Real.exp (-a * u ^ 2) := by fun_prop
+  -- Antiderivative H(x) = ∫₀ˣ exp(-a·u²) du, with H'(x) = exp(-a·x²)
+  set H := fun x : ℝ => ∫ u in (0 : ℝ)..x, Real.exp (-a * u ^ 2) with hH
+  have hH_deriv (x : ℝ) : HasDerivAt H (Real.exp (-a * x ^ 2)) x :=
+    (hg.integral_hasStrictDerivAt 0 x).hasDerivAt
+  have hH_zero : H 0 = 0 := by simp [hH]
+  -- F(t) = H(φ(t)), so F'(t) = exp(-a·φ(t)²)·φ'(t) ≥ 0 for t > 0
+  set F := fun t : ℝ => H (φ t) with hF
+  have hF_deriv (t : ℝ) : HasDerivAt F
+      (Real.exp (-a * (φ t) ^ 2) * (γ / ((Real.sqrt (γ + t ^ 2)) ^ 3))) t := by
+    have := (hH_deriv (φ t)).comp t (hφ_deriv t)
+    simpa [hF] using this
+  have hF_nonneg_deriv : ∀ t ∈ Set.Ioi (0 : ℝ),
+      0 ≤ Real.exp (-a * (φ t) ^ 2) * (γ / ((Real.sqrt (γ + t ^ 2)) ^ 3)) := by
+    intro t ht
+    have hpos : 0 < Real.sqrt (γ + t ^ 2) := Real.sqrt_pos.mpr (by nlinarith)
+    positivity
+  -- As t → ∞, φ(t) → 1, so F(t) → H(1) = boys0 a
+  have hφ_tendsto : Filter.Tendsto φ Filter.atTop (nhds 1) := by
+    have h_sq_ratio : Filter.Tendsto (fun t : ℝ => t ^ 2 / (γ + t ^ 2)) Filter.atTop (nhds 1) := by
+      have h_eq : (fun t : ℝ => t ^ 2 / (γ + t ^ 2)) = fun t => 1 - γ / (γ + t ^ 2) := by
+        ext t
+        field_simp [show γ + t ^ 2 ≠ 0 from by nlinarith [sq_nonneg t]]
+        ring
+      rw [h_eq]
+      have h_denom_atTop : Filter.Tendsto (fun t : ℝ => γ + t ^ 2) Filter.atTop Filter.atTop := by
+        have h_sq : Filter.Tendsto (fun t : ℝ => t ^ 2) Filter.atTop Filter.atTop :=
+          Filter.tendsto_pow_atTop (by norm_num : (2 : ℕ) ≠ 0)
+        have h_const : Filter.Tendsto (fun _ : ℝ => γ) Filter.atTop (nhds γ) := tendsto_const_nhds
+        simpa [add_comm] using h_sq.atTop_add h_const
+      have h_div_zero : Filter.Tendsto (fun t : ℝ => γ / (γ + t ^ 2)) Filter.atTop (nhds 0) :=
+        h_denom_atTop.const_div_atTop γ
+      simpa using Filter.Tendsto.sub (tendsto_const_nhds : Filter.Tendsto (fun _ => (1 : ℝ)) _ _)
+        h_div_zero
+    have h_nonneg : ∀ᶠ t : ℝ in Filter.atTop, 0 ≤ t := by
+      rw [Filter.eventually_atTop]
+      exact ⟨0, fun b hb => hb⟩
+    have h_eq_sqrt : ∀ t : ℝ, 0 ≤ t → φ t = Real.sqrt (t ^ 2 / (γ + t ^ 2)) := by
+      intro t ht
+      dsimp [φ]
+      rw [Real.sqrt_div (sq_nonneg t) _, Real.sqrt_sq ht]
+    have h_eq_on : φ =ᶠ[Filter.atTop] fun t => Real.sqrt (t ^ 2 / (γ + t ^ 2)) := by
+      filter_upwards [h_nonneg] with t ht using h_eq_sqrt t ht
+    have h_sqrt_tendsto : Filter.Tendsto (fun t => Real.sqrt (t ^ 2 / (γ + t ^ 2))) Filter.atTop
+        (nhds 1) := by
+      have h_sqrt_cont : ContinuousAt Real.sqrt (1 : ℝ) :=
+        Real.continuous_sqrt.continuousAt
+      simpa [Real.sqrt_one] using h_sqrt_cont.tendsto.comp h_sq_ratio
+    exact Filter.Tendsto.congr' h_eq_on.symm h_sqrt_tendsto
+  have h_H_one : H 1 = boys0 a := by
+    simp [boys0, H]
+  have hF_tendsto : Filter.Tendsto F Filter.atTop (nhds (boys0 a)) := by
+    have h_hasDeriv : HasDerivAt H (Real.exp (-a * (1 : ℝ) ^ 2)) (1 : ℝ) :=
+      (hg.integral_hasStrictDerivAt 0 1).hasDerivAt
+    have h_cont_H : ContinuousAt H 1 := h_hasDeriv.continuousAt
+    simpa [hF, h_H_one] using h_cont_H.tendsto.comp hφ_tendsto
+  have hF_zero : F 0 = 0 := by
+    dsimp [F, H, φ]
+    simp
+  -- Apply the non-negative FTC for improper integrals
+  have h_integral_eq : (∫ t in Set.Ioi (0 : ℝ),
+      Real.exp (-a * (φ t) ^ 2) * (γ / ((Real.sqrt (γ + t ^ 2)) ^ 3))) = boys0 a := by
+    have h_deriv_on : ∀ x ∈ Set.Ici (0 : ℝ), HasDerivAt F
+        (Real.exp (-a * (φ x) ^ 2) * (γ / ((Real.sqrt (γ + x ^ 2)) ^ 3))) x :=
+      fun x _ => hF_deriv x
+    have := integral_Ioi_of_hasDerivAt_of_nonneg' h_deriv_on hF_nonneg_deriv hF_tendsto
+    rw [hF_zero, sub_zero] at this
+    exact this
+  -- Match the integrand: φ(t)² = t²/(γ+t²)
+  have h_integrand (t : ℝ) : Real.exp (-a * (φ t) ^ 2) *
+      (γ / ((Real.sqrt (γ + t ^ 2)) ^ 3)) =
+      Real.exp (-a * (t ^ 2 / (γ + t ^ 2))) *
+      (γ / ((Real.sqrt (γ + t ^ 2)) ^ 3)) := by
+    dsimp [φ]
+    have hsq : (t / Real.sqrt (γ + t ^ 2)) ^ 2 = t ^ 2 / (γ + t ^ 2) := by
+      have hpos : 0 ≤ γ + t ^ 2 := by nlinarith
+      calc
+        (t / Real.sqrt (γ + t ^ 2)) ^ 2 = t ^ 2 / (Real.sqrt (γ + t ^ 2)) ^ 2 := by ring
+        _ = t ^ 2 / (γ + t ^ 2) := by rw [Real.sq_sqrt hpos]
+    rw [hsq]
+  -- Use integral_congr_ae (pointwise equality, so a.e. holds trivially)
+  have h_int_eq' : (∫ t in Set.Ioi (0 : ℝ),
+      Real.exp (-a * (φ t) ^ 2) * (γ / ((Real.sqrt (γ + t ^ 2)) ^ 3))) =
+      (∫ t in Set.Ioi (0 : ℝ),
+        Real.exp (-a * (t ^ 2 / (γ + t ^ 2))) *
+        (γ / ((Real.sqrt (γ + t ^ 2)) ^ 3))) := by
+    refine integral_congr_ae ?_
+    filter_upwards with t
+    rw [h_integrand t]
+  exact h_int_eq'.symm.trans h_integral_eq
+
 /-- The fundamental Coulomb–Gaussian integral in 3D:
 `∫ exp(-γ·|r|²) / |r-C| d³r = (2π/γ) · F₀(γ·|C|²)` for `γ > 0`. -/
 lemma integral_exp_neg_mul_sq_div_norm_sub (γ : ℝ) (hγ : 0 < γ) (C : ℝ³) :
     (∫ r : ℝ³, Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2) / ‖r - C‖) =
       (2 * π / γ) * boys0 (γ * ∑ i : Fin 3, (C i) ^ 2) := by
-  -- Proof outline: use 1/|x| = (2/√π)∫₀^∞ exp(-|x|²·t²) dt, then Fubini to swap
-  -- the r and t integrals, complete the square in the inner 3D Gaussian integral,
-  -- then substitute u = t/√(γ+t²) via FTC to recover the Boys function.
+  set a := γ * ∑ i : Fin 3, (C i) ^ 2 with ha
+  -- Almost everywhere version of the Coulomb potential representation
+  have h_ae_rep : (fun r : ℝ³ => Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2) / ‖r - C‖) =ᵐ[volume]
+      (fun r : ℝ³ => Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2) *
+        ((2 / Real.sqrt π) *
+          ∫ t in Set.Ioi (0 : ℝ), Real.exp (-(‖r - C‖ ^ 2) * t ^ 2))) := by
+    filter_upwards [ae_ne_set (fun r : ℝ³ => r - C) 0] with r hr
+    have h_ne : r - C ≠ 0 := hr
+    rw [one_div_norm_eq_integral_exp_Ioi h_ne]
+    ring
+  rw [integral_congr_ae h_ae_rep]
+  -- Pull out the constant factor 2/√π
+  rw [integral_mul_right, ← integral_const_mul ((2 : ℝ) / Real.sqrt π)]
+  -- Write as a double integral and swap via Fubini
+  -- The integrand is: exp(-γ·|r|²) · exp(-‖r-C‖²·t²)
+  -- Need to swap ∫_r ∫_t ... = ∫_t ∫_r ...
+  -- Use the interval-integral Fubini lemma with limits 0..R, then take R → ∞
+  -- For bounded R, complete the square in r and use the 3D Gaussian integral
+  -- Then take limit R → ∞ and apply the substitution lemma
   sorry
 
 /-- Nuclear attraction integral of two s-type primitive GTOs against a nucleus at `C`:
