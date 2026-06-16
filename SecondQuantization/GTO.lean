@@ -117,32 +117,6 @@ theorem electronRepulsion_swap_34 (φ₁ φ₂ φ₃ φ₄ : ℝ³ → ℝ) :
   funext r₂
   ring
 
-/-! ## Helper lemmas -/
-
-/-- Completing the square for the Gaussian product theorem:
-  `-α(x-a)² - β(x-b)² = -αβ/(α+β)·(a-b)² - (α+β)·(x - (αa+βb)/(α+β))²`.
-  Requires `α + β ≠ 0` to avoid division by zero. -/
-lemma complete_square (α β x a b : ℝ) (hαβ : α + β ≠ 0) :
-    -α * (x - a) ^ 2 + -β * (x - b) ^ 2 =
-      -(α * β) / (α + β) * (a - b) ^ 2
-        + -(α + β) * (x - (α * a + β * b) / (α + β)) ^ 2 := by
-  field_simp [hαβ]
-  ring
-
-/-- `exp(-γ·∑ᵢ rᵢ²) = ∏ᵢ exp(-γ·rᵢ²)`. Splits an exponential of a sum of squares
-into a product of one-dimensional Gaussians. -/
-lemma exp_neg_mul_sq_sum_eq_prod (γ : ℝ) (r : ℝ³) :
-    Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2) =
-      ∏ i : Fin 3, Real.exp (-γ * (r i) ^ 2) := by
-  rw [Finset.mul_sum, ← Real.exp_sum]
-
-/-- Translation invariance of the Lebesgue integral over `ℝ³`:
-  `∫ f(r - R) dr = ∫ f(r) dr`. -/
-lemma integral_translate (f : ℝ³ → ℝ) (R : ℝ³) :
-    (∫ r : ℝ³, f (fun i => r i - R i)) = (∫ r : ℝ³, f r) := by
-  have h := integral_sub_right_eq_self (μ := (volume : Measure ℝ³)) f R
-  simpa [Pi.sub_apply] using h
-
 /-! ## Explicit integral evaluations -/
 
 /-- The overlap of two s-type primitive GTOs sharing the same center is
@@ -150,19 +124,42 @@ lemma integral_translate (f : ℝ³ → ℝ) (R : ℝ³) :
 theorem overlap_primitiveGTO_s_same_center (α β : ℝ) (R : ℝ³) :
     overlap (primitiveGTO_s α R) (primitiveGTO_s β R) =
       (Real.sqrt (π / (α + β))) ^ 3 := by
-  -- Reduce integrand to exp(-(α+β)·|r-R|²), then translate R→0 and factor
+  -- Reduce to a 3D Gaussian integral over r ↦ r - R
   have hsimp : ∀ r : ℝ³,
       primitiveGTO_s α R r * primitiveGTO_s β R r =
         Real.exp (-(α + β) * ∑ i : Fin 3, (r i - R i) ^ 2) := by
     intro r
-    simp [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero, Finset.prod_const_one]
-    rw [← Real.exp_add]; congr 1; ring
-  unfold overlap
-  conv_lhs => arg 2; intro r; rw [hsimp r]
-  rw [integral_translate (fun r => Real.exp (-(α + β) * ∑ i : Fin 3, (r i) ^ 2)) R]
-  simp_rw [exp_neg_mul_sq_sum_eq_prod (α + β)]
+    simp only [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero,
+      Finset.prod_const_one, one_mul]
+    rw [← Real.exp_add]
+    congr 1
+    ring
+  -- Translate r ↦ r + R so r - R becomes r
+  have htrans :
+      (∫ r : ℝ³, Real.exp (-(α + β) * ∑ i : Fin 3, (r i - R i) ^ 2)) =
+        ∫ r : ℝ³, Real.exp (-(α + β) * ∑ i : Fin 3, (r i) ^ 2) := by
+    have h := integral_sub_right_eq_self (μ := (volume : Measure ℝ³))
+      (fun r : ℝ³ => Real.exp (-(α + β) * ∑ i : Fin 3, (r i) ^ 2)) R
+    simp only at h
+    rw [← h]
+    simp only [Pi.sub_apply]
+  -- Split exp of sum into product of exps; apply Fubini and 1D gaussian
+  have hsplit : ∀ r : ℝ³,
+      Real.exp (-(α + β) * ∑ i : Fin 3, (r i) ^ 2) =
+        ∏ i : Fin 3, Real.exp (-(α + β) * (r i) ^ 2) := by
+    intro r
+    rw [Finset.mul_sum, ← Real.exp_sum]
+  -- Stitch everything together
+  change (∫ r : ℝ³, primitiveGTO_s α R r * primitiveGTO_s β R r) = _
+  conv_lhs =>
+    arg 2; intro r
+    rw [hsimp r]
+  rw [htrans]
+  conv_lhs =>
+    arg 2; intro r
+    rw [hsplit r]
   rw [integral_fintype_prod_volume_eq_pow (fun x : ℝ => Real.exp (-(α + β) * x ^ 2)),
-    integral_gaussian]
+      integral_gaussian]
   simp [Fintype.card_fin]
 
 /-- **Gaussian product theorem.** The overlap of two s-type primitive GTOs centered at
@@ -173,47 +170,72 @@ theorem overlap_primitiveGTO_s_diff_center (α β : ℝ) (hαβ : α + β ≠ 0)
     overlap (primitiveGTO_s α R₁) (primitiveGTO_s β R₂) =
       (Real.sqrt (π / (α + β))) ^ 3 *
         Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) := by
-  -- Gaussian product center P = (α·R₁ + β·R₂) / (α+β)
+  -- Define the product center P = (α·R₁ + β·R₂) / (α+β)
   set P : ℝ³ := fun i => (α * R₁ i + β * R₂ i) / (α + β) with hP
-  -- Completing the square lifted to ℝ³ (the Gaussian product theorem)
-  have h_exp_sum_eq : ∀ r : ℝ³,
-      (-α * ∑ i : Fin 3, (r i - R₁ i) ^ 2) + (-β * ∑ i : Fin 3, (r i - R₂ i) ^ 2)
-        = (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2)
-          + (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2) := by
-    intro r
-    have step : ∀ i : Fin 3,
-        -α * (r i - R₁ i) ^ 2 + -β * (r i - R₂ i) ^ 2
-          = -(α * β) / (α + β) * (R₁ i - R₂ i) ^ 2
-              + -(α + β) * (r i - P i) ^ 2 := by
-      intro i
-      rw [show P i = (α * R₁ i + β * R₂ i) / (α + β) from rfl]
-      exact complete_square α β (r i) (R₁ i) (R₂ i) hαβ
-    calc
-      (-α * ∑ i : Fin 3, (r i - R₁ i) ^ 2) + (-β * ∑ i : Fin 3, (r i - R₂ i) ^ 2)
-          = ∑ i : Fin 3, (-α * (r i - R₁ i) ^ 2 + -β * (r i - R₂ i) ^ 2) := by
-            rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
-      _ = ∑ i : Fin 3, (-(α * β) / (α + β) * (R₁ i - R₂ i) ^ 2
-              + -(α + β) * (r i - P i) ^ 2) :=
-            Finset.sum_congr rfl (fun i _ => step i)
-      _ = (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2)
-            + (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2) := by
-              rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
-  -- Factor integrand: exp(-αβ/(α+β)·‖R₁-R₂‖²) · exp(-(α+β)·∑(r-P)²)
+  -- Complete the square (sign-flipped form): -α(x-a)² - β(x-b)²
+  --   = -αβ/(α+β)·(a-b)² - (α+β)·(x - (αa+βb)/(α+β))²
+  have hsq : ∀ x a b : ℝ,
+      -α * (x - a) ^ 2 + -β * (x - b) ^ 2
+        = -(α * β) / (α + β) * (a - b) ^ 2
+            + -(α + β) * (x - (α * a + β * b) / (α + β)) ^ 2 := by
+    intro x a b
+    field_simp
+    ring
+  -- Rewrite φα(r) * φβ(r) = exp(-αβ/(α+β)·‖R₁-R₂‖²) * exp(-(α+β)·∑(r-P)²)
   have hsimp : ∀ r : ℝ³,
       primitiveGTO_s α R₁ r * primitiveGTO_s β R₂ r =
         Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
           Real.exp (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2) := by
     intro r
-    simp [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero, Finset.prod_const_one]
-    rw [← Real.exp_add, ← Real.exp_add]; congr 1; simpa using h_exp_sum_eq r
-  unfold overlap
-  conv_lhs => arg 2; intro r; rw [hsimp r]
+    simp only [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero,
+      Finset.prod_const_one, one_mul]
+    rw [← Real.exp_add, ← Real.exp_add]
+    congr 1
+    have step : ∀ i : Fin 3,
+        -α * (r i - R₁ i) ^ 2 + -β * (r i - R₂ i) ^ 2
+          = -(α * β) / (α + β) * (R₁ i - R₂ i) ^ 2
+              + -(α + β) * (r i - P i) ^ 2 := by
+      intro i
+      have hPi : P i = (α * R₁ i + β * R₂ i) / (α + β) := rfl
+      rw [hPi]
+      exact hsq (r i) (R₁ i) (R₂ i)
+    calc -α * ∑ i : Fin 3, (r i - R₁ i) ^ 2
+            + -β * ∑ i : Fin 3, (r i - R₂ i) ^ 2
+        = ∑ i : Fin 3, (-α * (r i - R₁ i) ^ 2 + -β * (r i - R₂ i) ^ 2) := by
+            rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+      _ = ∑ i : Fin 3, (-(α * β) / (α + β) * (R₁ i - R₂ i) ^ 2
+              + -(α + β) * (r i - P i) ^ 2) :=
+            Finset.sum_congr rfl (fun i _ => step i)
+      _ = -(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2
+              + -(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2 := by
+            rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+  -- The constant factor pulls out of the integral
+  change (∫ r : ℝ³, primitiveGTO_s α R₁ r * primitiveGTO_s β R₂ r) = _
+  conv_lhs =>
+    arg 2; intro r
+    rw [hsimp r]
   rw [MeasureTheory.integral_const_mul]
-  -- Translate P → 0, then factor and apply 1D Gaussian integral
-  rw [integral_translate (fun r => Real.exp (-(α + β) * ∑ i : Fin 3, (r i) ^ 2)) P]
-  simp_rw [exp_neg_mul_sq_sum_eq_prod (α + β)]
+  -- Now reduce ∫ exp(-(α+β)·∑(r-P)²) to ∫ exp(-(α+β)·∑r²) by translation
+  have htrans :
+      (∫ r : ℝ³, Real.exp (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2)) =
+        ∫ r : ℝ³, Real.exp (-(α + β) * ∑ i : Fin 3, (r i) ^ 2) := by
+    have h := integral_sub_right_eq_self (μ := (volume : Measure ℝ³))
+      (fun r : ℝ³ => Real.exp (-(α + β) * ∑ i : Fin 3, (r i) ^ 2)) P
+    simp only at h
+    rw [← h]
+    simp only [Pi.sub_apply]
+  rw [htrans]
+  -- Split exp of sum into product of exps; apply Fubini and 1D gaussian
+  have hsplit : ∀ r : ℝ³,
+      Real.exp (-(α + β) * ∑ i : Fin 3, (r i) ^ 2) =
+        ∏ i : Fin 3, Real.exp (-(α + β) * (r i) ^ 2) := by
+    intro r
+    rw [Finset.mul_sum, ← Real.exp_sum]
+  conv_lhs =>
+    arg 2; arg 2; intro r
+    rw [hsplit r]
   rw [integral_fintype_prod_volume_eq_pow (fun x : ℝ => Real.exp (-(α + β) * x ^ 2)),
-    integral_gaussian]
+      integral_gaussian]
   simp [Fintype.card_fin, mul_comm]
 
 /-- Bilinearity of the overlap integral over the first argument: a finite sum can be pulled out,
@@ -305,11 +327,20 @@ lemma integral_gaussian_moment_1d (n : ℕ) (γ : ℝ) (hγ : γ > 0) :
       ((m + 1 : ℝ) / (2 * γ)) * gaussianMoment m γ := by
     dsimp [gaussianMoment]
     by_cases hm : m % 2 = 1
-    · have hm2 : (m + 2) % 2 = 1 := by rw [Nat.add_mod_right]; simpa using hm
+    · have hm2 : (m + 2) % 2 = 1 := by
+        rw [Nat.add_mod_right]; simpa using hm
       simp [hm, hm2]
     · have hm_even : m % 2 = 0 := Nat.mod_two_eq_zero_or_one m |>.resolve_right hm
-      have hm2_even : (m + 2) % 2 = 0 := by rw [Nat.add_mod_right]; simpa using hm_even
-      simp [hm_even, hm2_even, Nat.doubleFactorial_add_one m, pow_succ]
+      have hm2_even : (m + 2) % 2 = 0 := by
+        rw [Nat.add_mod_right]; simpa using hm_even
+      simp [hm_even, hm2_even]
+      have h_df : (Nat.doubleFactorial (m + 1) : ℝ) =
+          (m + 1 : ℝ) * (Nat.doubleFactorial (m - 1) : ℝ) := by
+        simp [Nat.doubleFactorial_add_one m]
+      rw [h_df]
+      have h_pow : (2 * γ : ℝ) ^ (m / 2 + 1) = (2 * γ : ℝ) * (2 * γ : ℝ) ^ (m / 2) := by
+        rw [pow_succ, mul_comm]
+      rw [h_pow]
       field_simp [show 2 * γ ≠ 0 by linarith]
   -- Integral recurrence: I_{m+2} = ((m+1)/(2γ)) * I_m, using derivative method
   have h_int_recurrence (m : ℕ) : (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) =
@@ -318,25 +349,31 @@ lemma integral_gaussian_moment_1d (n : ℕ) (γ : ℝ) (hγ : γ > 0) :
     set f1 := fun x : ℝ => ((m + 1 : ℝ) * x ^ m * Real.exp (-γ * x ^ 2)) with hf1_def
     set f2 := fun x : ℝ => (2 * γ) * x ^ (m + 2) * Real.exp (-γ * x ^ 2) with hf2_def
     set f' := fun x : ℝ => f1 x - f2 x with hf'_def
-    -- Derivative: f' = d/dx f = d/dx [x^(m+1)·exp(-γx²)]
+    -- Derivative: f' = d/dx f
     have h_deriv : ∀ x : ℝ, HasDerivAt f (f' x) x := by
       intro x
+      dsimp [f, f', f1, f2]
       have h1 : HasDerivAt (fun x : ℝ => x ^ (m + 1)) ((m + 1 : ℝ) * x ^ m) x := by
-        simpa using hasDerivAt_pow (m + 1) x
+        have h := hasDerivAt_pow (m + 1) x
+        simpa [show ((m + 1 : ℕ) - 1 : ℕ) = m by omega, Nat.cast_succ] using h
       have h2 : HasDerivAt (fun x : ℝ => Real.exp (-γ * x ^ 2))
-          (-2 * γ * x * Real.exp (-γ * x ^ 2)) x := by
+          (Real.exp (-γ * x ^ 2) * (-2 * γ * x)) x := by
         have h_inner : HasDerivAt (fun x : ℝ => -γ * x ^ 2) (-2 * γ * x) x := by
-          simpa [mul_comm, mul_left_comm, mul_assoc, neg_mul] using ((hasDerivAt_pow 2 x).const_mul (-γ))
-        simpa [mul_comm] using (Real.hasDerivAt_exp (-γ * x ^ 2)).comp x h_inner
-      dsimp [f, f1, f2, f']
+          have h_sq : HasDerivAt (fun x : ℝ => x ^ 2) (2 * x) x := by
+            simpa using hasDerivAt_pow 2 x
+          simpa [mul_comm, mul_left_comm, mul_assoc, neg_mul] using h_sq.const_mul (-γ)
+        exact (Real.hasDerivAt_exp (-γ * x ^ 2)).comp x h_inner
       have h_mul := h1.mul h2
-      dsimp [f, f1, f2, f']
       convert h_mul using 1
       ring
+    -- Integrability conditions
+    have h_int_f : Integrable f volume := by dsimp [f]; simpa using h_int (m + 1)
+    have h_int_f1 : Integrable f1 volume := by
       dsimp [f1]; simpa [mul_assoc] using (h_int m).const_mul (m + 1 : ℝ)
     have h_int_f2 : Integrable f2 volume := by
       dsimp [f2]; simpa [mul_assoc] using (h_int (m + 2)).const_mul (2 * γ)
-    have h_int_f' : Integrable f' volume := Integrable.sub h_int_f1 h_int_f2
+    have h_int_f' : Integrable f' volume := by
+      dsimp [f']; exact Integrable.sub h_int_f1 h_int_f2
     -- ∫ f' = 0 by fundamental theorem of calculus (boundary terms vanish at ±∞)
     have h_zero : (∫ x : ℝ, f' x) = 0 :=
       MeasureTheory.integral_eq_zero_of_hasDerivAt_of_integrable h_deriv h_int_f' h_int_f
@@ -345,18 +382,33 @@ lemma integral_gaussian_moment_1d (n : ℕ) (γ : ℝ) (hγ : γ > 0) :
         (2 * γ) * (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) := by
       dsimp [f', f1, f2]
       rw [integral_sub h_int_f1 h_int_f2]
-      simp [integral_const_mul, mul_comm, mul_left_comm, mul_assoc]
+      have h_int1 : (∫ x : ℝ, ((m + 1 : ℝ) * x ^ m * Real.exp (-γ * x ^ 2))) =
+          (m + 1 : ℝ) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) := by
+        calc
+          (∫ x : ℝ, ((m + 1 : ℝ) * x ^ m * Real.exp (-γ * x ^ 2))) =
+              (∫ x : ℝ, (m + 1 : ℝ) * (x ^ m * Real.exp (-γ * x ^ 2))) := by
+            refine integral_congr_ae ?_; filter_upwards with x; ring
+          _ = (m + 1 : ℝ) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) := by
+            rw [integral_const_mul]
+      have h_int2 : (∫ x : ℝ, (2 * γ) * x ^ (m + 2) * Real.exp (-γ * x ^ 2)) =
+          (2 * γ) * (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) := by
+        calc
+          (∫ x : ℝ, (2 * γ) * x ^ (m + 2) * Real.exp (-γ * x ^ 2)) =
+              (∫ x : ℝ, (2 * γ) * (x ^ (m + 2) * Real.exp (-γ * x ^ 2))) := by
+            refine integral_congr_ae ?_; filter_upwards with x; ring
+          _ = (2 * γ) * (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) := by
+            rw [integral_const_mul]
+      rw [h_int1, h_int2]
     rw [h_expanded] at h_zero
-    -- Rearrange: (2γ)*I_{m+2} = (m+1)*I_m → I_{m+2} = (m+1)/(2γ) * I_m
-    have h_eq : (2 * γ) * (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) =
-        (m + 1 : ℝ) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) := by linarith
+    -- Rearrange: (m+1)*I_m = (2γ)*I_{m+2} → I_{m+2} = (m+1)/(2γ) * I_m
+    have h_eq : (m + 1 : ℝ) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) =
+        (2 * γ) * (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) := by linarith
     have h_denom : 2 * γ ≠ 0 := by linarith
     calc
-      (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2))
-          = ((2 * γ)⁻¹ * (2 * γ)) * (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) := by
-            field_simp [h_denom]
-      _ = (2 * γ)⁻¹ * ((m + 1 : ℝ) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2))) := by
-            rw [← h_eq]; ring
+      (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) =
+          ((2 * γ)⁻¹) * ((2 * γ) * (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2))) := by
+        field_simp [h_denom]
+      _ = ((2 * γ)⁻¹) * ((m + 1 : ℝ) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2))) := by rw [h_eq]
       _ = ((m + 1 : ℝ) / (2 * γ)) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) := by ring
   -- Main proof: strong induction on n
   refine Nat.strong_induction_on n ?_
@@ -367,26 +419,37 @@ lemma integral_gaussian_moment_1d (n : ℕ) (γ : ℝ) (hγ : γ > 0) :
       dsimp [gaussianMoment]; simp [hn_odd]
     rw [h_gm]
     -- Show integral = 0 by f(-x) = -f(x) for odd n
-    have h_neg_pow (x : ℝ) : (-x) ^ n = -(x ^ n) := by
-      have h_odd : Odd n := Nat.odd_iff.mpr hn_odd
-      simpa using h_odd.neg_pow x
     have h_main : (∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2)) =
         - (∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2)) := by
+      have h_eq : (∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2)) =
+          (∫ x : ℝ, (-x) ^ n * Real.exp (-γ * (-x) ^ 2)) := by
+        rw [integral_neg_eq_self (fun x => x ^ n * Real.exp (-γ * x ^ 2)) volume]
+      have h_neg_pow : ∀ x : ℝ, (-x) ^ n = -(x ^ n) := by
+        intro x
+        have h_odd : Odd n := Nat.odd_iff.mpr hn_odd
+        calc
+          (-x) ^ n = ((-1 : ℝ) * x) ^ n := by ring
+          _ = (-1 : ℝ) ^ n * x ^ n := by ring
+          _ = (-1 : ℝ) * x ^ n := by rw [Odd.neg_one_pow h_odd]
+          _ = -(x ^ n) := by ring
       calc
-        (∫ x, x ^ n * Real.exp (-γ * x ^ 2))
-            = (∫ x, (-x) ^ n * Real.exp (-γ * (-x) ^ 2)) := by
-              rw [integral_neg_eq_self (fun x => x ^ n * Real.exp (-γ * x ^ 2)) volume]
-        _ = (∫ x, (-x) ^ n * Real.exp (-γ * x ^ 2)) := by
-              refine integral_congr_ae ?_; filter_upwards with x; simp
-        _ = (∫ x, (-(x ^ n)) * Real.exp (-γ * x ^ 2)) :=
-              integral_congr_ae (by filter_upwards with x; simp [h_neg_pow])
-        _ = - (∫ x, x ^ n * Real.exp (-γ * x ^ 2)) := by simp [integral_neg]
+        (∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2)) =
+            (∫ x : ℝ, (-x) ^ n * Real.exp (-γ * (-x) ^ 2)) := h_eq
+        _ = (∫ x : ℝ, (-(x ^ n)) * Real.exp (-γ * x ^ 2)) := by
+          refine integral_congr_ae ?_
+          filter_upwards with x
+          simp [h_neg_pow x, show (-x) ^ 2 = x ^ 2 by ring]
+        _ = (∫ x : ℝ, -(x ^ n * Real.exp (-γ * x ^ 2))) := by
+          refine integral_congr_ae ?_
+          filter_upwards with x; ring
+        _ = - (∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2)) := by rw [integral_neg]
     linarith
   · -- Even n: handle n=0 directly, or use recurrence for n ≥ 2
     have hn_even : n % 2 = 0 := Nat.mod_two_eq_zero_or_one n |>.resolve_right hn_odd
     by_cases hn0 : n = 0
     · subst hn0
-      simp [gaussianMoment, neg_mul, integral_gaussian γ]
+      simp [gaussianMoment]
+      simpa [neg_mul] using integral_gaussian γ
     by_cases hn1 : n = 1
     · subst hn1; norm_num at hn_even
     -- n ≥ 2: write n = m + 2, apply recurrence and induction hypothesis
@@ -394,8 +457,8 @@ lemma integral_gaussian_moment_1d (n : ℕ) (γ : ℝ) (hγ : γ > 0) :
     rcases Nat.exists_eq_add_of_le hn_ge2 with ⟨m, hm⟩
     rw [show n = m + 2 by omega] at ih ⊢
     calc
-      (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2))
-          = ((m + 1 : ℝ) / (2 * γ)) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) :=
+      (∫ x : ℝ, x ^ (m + 2) * Real.exp (-γ * x ^ 2)) =
+          ((m + 1 : ℝ) / (2 * γ)) * (∫ x : ℝ, x ^ m * Real.exp (-γ * x ^ 2)) :=
         h_int_recurrence m
       _ = ((m + 1 : ℝ) / (2 * γ)) * gaussianMoment m γ := by rw [ih m (by omega)]
       _ = gaussianMoment (m + 2) γ := by rw [h_gm_recurrence m]
@@ -406,35 +469,70 @@ Requires `α + β > 0` so that the Gaussian integrals converge. -/
 theorem overlap_primitiveGTO_same_center (α β : ℝ) (R : ℝ³) (l m : Fin 3 → ℕ) (hαβ : α + β > 0) :
     overlap (primitiveGTO α R l) (primitiveGTO β R m) =
       ∏ i : Fin 3, gaussianMoment (l i + m i) (α + β) := by
-  -- Rewrite the integrand as a product of 1D factors: combine polynomials and exponentials
+  unfold overlap primitiveGTO
+  -- Simplify the integrand to a product of 1D factors
   have hsimp : ∀ r : ℝ³,
       ((∏ i : Fin 3, (r i - R i) ^ l i) * Real.exp (-α * ∑ i : Fin 3, (r i - R i) ^ 2)) *
         ((∏ i : Fin 3, (r i - R i) ^ m i) * Real.exp (-β * ∑ i : Fin 3, (r i - R i) ^ 2)) =
         ∏ i : Fin 3, ((r i - R i) ^ (l i + m i) * Real.exp (-(α + β) * (r i - R i) ^ 2)) := by
+    intro r
     calc
-      ((∏ i, (r i - R i) ^ l i) * Real.exp (-α * ∑ i, (r i - R i) ^ 2)) *
-        ((∏ i, (r i - R i) ^ m i) * Real.exp (-β * ∑ i, (r i - R i) ^ 2))
-      = ((∏ i, (r i - R i) ^ l i) * (∏ i, (r i - R i) ^ m i)) *
-          (Real.exp (-α * ∑ i, (r i - R i) ^ 2) * Real.exp (-β * ∑ i, (r i - R i) ^ 2)) := by ring
-      _ = ((∏ i, (r i - R i) ^ l i) * (∏ i, (r i - R i) ^ m i)) *
-          Real.exp ((-α * ∑ i, (r i - R i) ^ 2) + (-β * ∑ i, (r i - R i) ^ 2)) := by rw [Real.exp_add]
-      _ = (∏ i, (r i - R i) ^ (l i + m i)) *
-          Real.exp (-(α + β) * ∑ i, (r i - R i) ^ 2) := by
-        simp [Finset.prod_mul_distrib, pow_add]; ring
-      _ = ∏ i, ((r i - R i) ^ (l i + m i) * Real.exp (-(α + β) * (r i - R i) ^ 2)) := by
-        rw [exp_neg_mul_sq_sum_eq_prod (α + β) (fun i => r i - R i), Finset.prod_mul_distrib]
-  unfold overlap primitiveGTO
-  conv_lhs =>
-    arg 2; intro r; rw [hsimp r]
-  -- Translate R → 0, then factor into product of 1D integrals
-  rw [integral_translate (fun r => ∏ i : Fin 3,
-    (r i ^ (l i + m i) * Real.exp (-(α + β) * (r i) ^ 2))) R]
+      ((∏ i : Fin 3, (r i - R i) ^ l i) * Real.exp (-α * ∑ i : Fin 3, (r i - R i) ^ 2)) *
+          ((∏ i : Fin 3, (r i - R i) ^ m i) * Real.exp (-β * ∑ i : Fin 3, (r i - R i) ^ 2)) =
+          ((∏ i : Fin 3, (r i - R i) ^ l i) * (∏ i : Fin 3, (r i - R i) ^ m i)) *
+            (Real.exp (-α * ∑ i : Fin 3, (r i - R i) ^ 2) *
+              Real.exp (-β * ∑ i : Fin 3, (r i - R i) ^ 2)) := by ring
+      _ = ((∏ i : Fin 3, ((r i - R i) ^ l i * (r i - R i) ^ m i))) *
+            (Real.exp (-α * ∑ i : Fin 3, (r i - R i) ^ 2) *
+              Real.exp (-β * ∑ i : Fin 3, (r i - R i) ^ 2)) := by
+        rw [← Finset.prod_mul_distrib]
+      _ = ((∏ i : Fin 3, ((r i - R i) ^ l i * (r i - R i) ^ m i))) *
+            Real.exp ((-α * ∑ i : Fin 3, (r i - R i) ^ 2) +
+              (-β * ∑ i : Fin 3, (r i - R i) ^ 2)) := by rw [Real.exp_add]
+      _ = (∏ i : Fin 3, ((r i - R i) ^ l i * (r i - R i) ^ m i)) *
+            Real.exp (-(α + β) * ∑ i : Fin 3, (r i - R i) ^ 2) := by
+        have h : (-α * ∑ i : Fin 3, (r i - R i) ^ 2) + (-β * ∑ i : Fin 3, (r i - R i) ^ 2) =
+            -(α + β) * ∑ i : Fin 3, (r i - R i) ^ 2 := by ring
+        rw [h]
+      _ = (∏ i : Fin 3, ((r i - R i) ^ (l i + m i))) *
+            Real.exp (-(α + β) * ∑ i : Fin 3, (r i - R i) ^ 2) := by
+        refine congrArg (· * _) (Finset.prod_congr rfl fun i _ => ?_)
+        rw [pow_add]
+      _ = (∏ i : Fin 3, ((r i - R i) ^ (l i + m i))) *
+            Real.exp (∑ i : Fin 3, (-(α + β) * (r i - R i) ^ 2)) := by
+        rw [Finset.mul_sum]
+      _ = (∏ i : Fin 3, ((r i - R i) ^ (l i + m i))) *
+            (∏ i : Fin 3, Real.exp (-(α + β) * (r i - R i) ^ 2)) := by
+        rw [Real.exp_sum]
+      _ = ∏ i : Fin 3, ((r i - R i) ^ (l i + m i) * Real.exp (-(α + β) * (r i - R i) ^ 2)) := by
+        rw [Finset.prod_mul_distrib]
+  -- Rewrite the integral using hsimp
+  have h_int_eq : (∫ r : ℝ³,
+      ((∏ i : Fin 3, (r i - R i) ^ l i) * Real.exp (-α * ∑ i : Fin 3, (r i - R i) ^ 2)) *
+        ((∏ i : Fin 3, (r i - R i) ^ m i) * Real.exp (-β * ∑ i : Fin 3, (r i - R i) ^ 2))) =
+      (∫ r : ℝ³, ∏ i : Fin 3,
+        ((r i - R i) ^ (l i + m i) * Real.exp (-(α + β) * (r i - R i) ^ 2))) := by
+    refine integral_congr_ae ?_
+    filter_upwards with r
+    rw [hsimp r]
+  rw [h_int_eq]
+  -- Translate r ↦ r + R (so r - R becomes r)
+  have h_trans : (∫ r : ℝ³, ∏ i : Fin 3,
+      ((r i - R i) ^ (l i + m i) * Real.exp (-(α + β) * (r i - R i) ^ 2))) =
+      (∫ r : ℝ³, ∏ i : Fin 3,
+        (r i ^ (l i + m i) * Real.exp (-(α + β) * (r i) ^ 2))) := by
+    have := integral_sub_right_eq_self (μ := (volume : Measure ℝ³))
+      (fun r : ℝ³ => ∏ i : Fin 3,
+        (r i ^ (l i + m i) * Real.exp (-(α + β) * (r i) ^ 2))) R
+    simpa [Pi.sub_apply] using this
+  rw [h_trans]
   -- Factor the 3D integral into product of 1D integrals
   rw [integral_fintype_prod_volume_eq_prod
     (fun (i : Fin 3) (x : ℝ) => x ^ (l i + m i) * Real.exp (-(α + β) * x ^ 2))]
   -- Each 1D integral equals gaussianMoment (l_i + m_i) (α+β) by integral_gaussian_moment_1d
   refine Finset.prod_congr rfl fun i _ => ?_
   rw [integral_gaussian_moment_1d (l i + m i) (α + β) hαβ]
+
 /-- The overlap of two different-center primitive GTOs with general angular momenta factors,
 after translation to the product center `P = (αR₁ + βR₂)/(α+β)`, into a product over the three
 axes of one-dimensional moment integrals of the form
@@ -442,7 +540,7 @@ axes of one-dimensional moment integrals of the form
 with an overall pre-factor `exp(-αβ/(α+β)·‖R₁-R₂‖²)` from the Gaussian product theorem. The
 fully-expanded McMurchie–Davidson form would express these one-dimensional moments as finite
 linear combinations of `gaussianMoment k (α+β)`. -/
-theorem overlap_primitiveGTO_diff_center (α β : ℝ) (hαβ : α + β ≠ 0)
+theorem overlap_primitiveGTO_diff_center (α β : ℝ) (_ : α + β ≠ 0)
     (R₁ R₂ : ℝ³) (l m : Fin 3 → ℕ) :
     overlap (primitiveGTO α R₁ l) (primitiveGTO β R₂ m) =
       Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
@@ -452,7 +550,15 @@ theorem overlap_primitiveGTO_diff_center (α β : ℝ) (hαβ : α + β ≠ 0)
           Real.exp (-(α + β) * x ^ 2) := by
   -- Gaussian product center P = (α·R₁ + β·R₂) / (α+β)
   set P : ℝ³ := fun i => (α * R₁ i + β * R₂ i) / (α + β) with hP
-  -- Completing the square, lifted to ℝ³
+  -- Completing the square identity (1D)
+  have hsq : ∀ x a b : ℝ,
+      -α * (x - a) ^ 2 + -β * (x - b) ^ 2
+        = -(α * β) / (α + β) * (a - b) ^ 2
+            + -(α + β) * (x - (α * a + β * b) / (α + β)) ^ 2 := by
+    intro x a b
+    field_simp
+    ring
+  -- Lift to 3D: equality of the exponent sums
   have h_exp_sum_eq : ∀ r : ℝ³,
       (-α * ∑ i : Fin 3, (r i - R₁ i) ^ 2) + (-β * ∑ i : Fin 3, (r i - R₂ i) ^ 2)
         = (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2)
@@ -463,8 +569,9 @@ theorem overlap_primitiveGTO_diff_center (α β : ℝ) (hαβ : α + β ≠ 0)
           = -(α * β) / (α + β) * (R₁ i - R₂ i) ^ 2
               + -(α + β) * (r i - P i) ^ 2 := by
       intro i
-      rw [show P i = (α * R₁ i + β * R₂ i) / (α + β) from rfl]
-      exact complete_square α β (r i) (R₁ i) (R₂ i) hαβ
+      have hPi : P i = (α * R₁ i + β * R₂ i) / (α + β) := rfl
+      rw [hPi]
+      exact hsq (r i) (R₁ i) (R₂ i)
     calc
       (-α * ∑ i : Fin 3, (r i - R₁ i) ^ 2) + (-β * ∑ i : Fin 3, (r i - R₂ i) ^ 2)
           = ∑ i : Fin 3, (-α * (r i - R₁ i) ^ 2 + -β * (r i - R₂ i) ^ 2) := by
@@ -516,14 +623,20 @@ theorem overlap_primitiveGTO_diff_center (α β : ℝ) (hαβ : α + β ≠ 0)
   -- Now the target is: C * I = C * RHS where C = exp(...), I = ∫ poly*exp, RHS = ∏∫...
   -- Factor the integral I into a product-of-1D-integrals, then translate each 1D integral
   congr 2
-  -- Factor exp(-(α+β)·∑(r-P)²) = ∏ exp(-(α+β)·(rᵢ-Pᵢ)²)
+  -- Show I = RHS (without the C factor)
+  have hsplit : ∀ r : ℝ³,
+      Real.exp (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2) =
+        ∏ i : Fin 3, Real.exp (-(α + β) * (r i - P i) ^ 2) := by
+    intro r
+    rw [Finset.mul_sum, ← Real.exp_sum]
+  -- Rewrite integrand: (∏ poly) * exp_sum = ∏ (poly * exp_i)
   have hintegrand_eq :
       (fun r : ℝ³ => (∏ i : Fin 3, (r i - R₁ i) ^ l i * (r i - R₂ i) ^ m i) *
         Real.exp (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2)) =
       (fun r : ℝ³ => ∏ i : Fin 3, (((r i - R₁ i) ^ l i * (r i - R₂ i) ^ m i) *
         Real.exp (-(α + β) * (r i - P i) ^ 2))) := by
     ext r
-    rw [exp_neg_mul_sq_sum_eq_prod (α + β) (fun i => r i - P i)]
+    rw [hsplit r]
     simp [Finset.prod_mul_distrib, mul_assoc]
   calc
     (∫ r : ℝ³, (∏ i : Fin 3, (r i - R₁ i) ^ l i * (r i - R₂ i) ^ m i) *
