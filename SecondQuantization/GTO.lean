@@ -1330,7 +1330,7 @@ lemma integral_exp_neg_mul_sq_div_norm_sub (γ : ℝ) (hγ : 0 < γ) (C : ℝ³)
   `V = (2π/(α+β)) · exp(-αβ/(α+β)·‖R₁-R₂‖²) · F₀((α+β)·‖P-C‖²)`,
 where `P = (αR₁+βR₂)/(α+β)` is the Gaussian product center. -/
 theorem nuclearAttraction_primitiveGTO_s
-    (α β : ℝ) (hαβ : α + β ≠ 0) (R₁ R₂ C : ℝ³) :
+    (α β : ℝ) (hαβ : 0 < α + β) (R₁ R₂ C : ℝ³) :
     nuclearAttraction C (primitiveGTO_s α R₁) (primitiveGTO_s β R₂) =
       (2 * π / (α + β)) *
         Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
@@ -1339,12 +1339,7 @@ theorem nuclearAttraction_primitiveGTO_s
             ((α * R₁ i + β * R₂ i) / (α + β) - C i) ^ 2) := by
   -- Apply Gaussian product theorem: φα·φβ = K·exp(-γ·|r-P|²)
   set γ := α + β with hγ
-  have hγpos : 0 < γ := by
-    by_cases hpos : 0 < γ
-    · exact hpos
-    · have hneg : γ < 0 := lt_of_le_of_ne (by linarith) hαβ
-      -- γ < 0: Gaussian integrals diverge. The physical case (α, β > 0) always has γ > 0.
-      sorry
+  --have hγpos : 0 < γ := by
   set P : ℝ³ := fun i => (α * R₁ i + β * R₂ i) / γ with hP
   set K := Real.exp (-(α * β) / γ * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) with hK
   -- Combine the two Gaussians using the product theorem (same as overlap_primitiveGTO_s_diff_center)
@@ -1355,7 +1350,7 @@ theorem nuclearAttraction_primitiveGTO_s
       Finset.prod_const_one, one_mul]
     -- Use the completing-the-square identity from overlap_primitiveGTO_s_diff_center
     -- Recover the original hypothesis form: α + β ≠ 0
-    have hαβ' : α + β ≠ 0 := by simpa [γ] using hαβ
+    have hαβ' : α + β ≠ 0 := by simpa [γ] using hαβ.ne.symm
     have hsq : ∀ x a b : ℝ, -α * (x - a) ^ 2 + -β * (x - b) ^ 2 =
         -(α * β) / (α + β) * (a - b) ^ 2 + -(α + β) * (x - (α * a + β * b) / (α + β)) ^ 2 := by
       intro x a b
@@ -1402,7 +1397,7 @@ theorem nuclearAttraction_primitiveGTO_s
     simpa [Pi.sub_apply, sub_sub_cancel] using h
   rw [h_trans]
   -- Apply the Coulomb-Gaussian lemma
-  rw [integral_exp_neg_mul_sq_div_norm_sub γ hγpos (C - P)]
+  rw [integral_exp_neg_mul_sq_div_norm_sub γ hαβ (C - P)]
   -- Simplify: |C-P|² = ∑ᵢ ((αR₁+βR₂)/(α+β) - C)²
   have h_dist_sq : ∑ i : Fin 3, ((C - P) i) ^ 2 =
       ∑ i : Fin 3, ((α * R₁ i + β * R₂ i) / γ - C i) ^ 2 := by
