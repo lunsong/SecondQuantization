@@ -57,16 +57,18 @@ noncomputable def contractedGTO {ι : Type} [Fintype ι]
 noncomputable def overlap (φ ψ : ℝ³ → ℝ) : ℝ :=
   ∫ r : ℝ³, φ r * ψ r
 
+noncomputable def coulomb (x y : ℝ³) : ℝ := 1 / √(∑ i, (x i - y i) ^ 2)
+
 /-- The nuclear attraction integral for a nucleus at `C`:
   `V = ∫ φ(r) · (1 / ‖r - C‖) · ψ(r) dr` over `ℝ³`. -/
 noncomputable def nuclearAttraction (C : ℝ³) (φ ψ : ℝ³ → ℝ) : ℝ :=
-  ∫ r : ℝ³, φ r * (1 / ‖(r - C : ℝ³)‖) * ψ r
+  ∫ r : ℝ³, φ r * coulomb r C * ψ r
 
 /-- The two-electron repulsion integral (electron-electron interaction):
   `(φ₁ φ₂ | φ₃ φ₄) = ∫∫ φ₁(r₁) · φ₂(r₁) · (1 / ‖r₁ - r₂‖) · φ₃(r₂) · φ₄(r₂) dr₁ dr₂`. -/
 noncomputable def electronRepulsion (φ₁ φ₂ φ₃ φ₄ : ℝ³ → ℝ) : ℝ :=
   ∫ r₁ : ℝ³, ∫ r₂ : ℝ³,
-    φ₁ r₁ * φ₂ r₁ * (1 / ‖(r₁ - r₂ : ℝ³)‖) * φ₃ r₂ * φ₄ r₂
+    φ₁ r₁ * φ₂ r₁ * coulomb r₁ r₂ * φ₃ r₂ * φ₄ r₂
 
 /-- The kinetic energy integral:
   `T = ½ ∫ ∇φ(r) · ∇ψ(r) dr` over `ℝ³`.
@@ -1267,7 +1269,7 @@ noncomputable def boys0 (t : ℝ) : ℝ := ∫ u in (0:ℝ)..1, Real.exp (-t * u
   `V = (2π/(α+β)) · exp(-αβ/(α+β)·‖R₁-R₂‖²) · F₀((α+β)·‖P-C‖²)`,
 where `P = (αR₁+βR₂)/(α+β)` is the Gaussian product center. -/
 theorem nuclearAttraction_primitiveGTO_s
-    (α β : ℝ) (hαβ : α + β ≠ 0) (R₁ R₂ C : ℝ³) :
+    (α β : ℝ) (hα : 0 < α) (hβ : 0 < β) (R₁ R₂ C : ℝ³) :
     nuclearAttraction C (primitiveGTO_s α R₁) (primitiveGTO_s β R₂) =
       (2 * π / (α + β)) *
         Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
@@ -1280,8 +1282,7 @@ theorem nuclearAttraction_primitiveGTO_s
   `P = (α₁R₁+α₂R₂)/(α₁+α₂)`, `Q = (α₃R₃+α₄R₄)/(α₃+α₄)`, `p = α₁+α₂`, `q = α₃+α₄`, the closed
 form involves the zeroth Boys function evaluated at `pq/(p+q) · ‖P-Q‖²`. -/
 theorem electronRepulsion_primitiveGTO_s
-    (α₁ α₂ α₃ α₄ : ℝ) (_ : α₁ + α₂ ≠ 0) (_ : α₃ + α₄ ≠ 0)
-    (_ : (α₁ + α₂) + (α₃ + α₄) ≠ 0)
+    (α₁ α₂ α₃ α₄ : ℝ) (hα₁ : 0 < α₁) (hα₂ : 0 < α₂) (hα₃ : 0 < α₃) (hα₄ : 0 < α₄)
     (R₁ R₂ R₃ R₄ : ℝ³) :
     electronRepulsion (primitiveGTO_s α₁ R₁) (primitiveGTO_s α₂ R₂)
         (primitiveGTO_s α₃ R₃) (primitiveGTO_s α₄ R₄) =
