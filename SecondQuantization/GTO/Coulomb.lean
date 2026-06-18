@@ -42,7 +42,7 @@ lemma hasDerivAt_u_div_sqrt_add_sq (γ : ℝ) (hγ : 0 < γ) (u : ℝ) :
       · rw [← mul_left_inj' hγ_ne]
         have h_pow_eq : (γ + u ^ 2) ^ (3/2 : ℝ) = (Real.sqrt (γ + u ^ 2)) ^ 3 := by
           calc
-            (γ + u ^ 2) ^ (3/2 : ℝ) = (γ + u ^ 2) ^ ((1/2 : ℝ) * (3 : ℝ)) := by ring
+            (γ + u ^ 2) ^ (3/2 : ℝ) = (γ + u ^ 2) ^ ((1/2 : ℝ) * (3 : ℝ)) := by norm_num
             _ = ((γ + u ^ 2) ^ (1/2 : ℝ)) ^ (3 : ℝ) := by
               rw [rpow_mul (by nlinarith : 0 ≤ γ + u ^ 2) (1/2 : ℝ) (3 : ℝ)]
             _ = (Real.sqrt (γ + u ^ 2)) ^ (3 : ℝ) := by rw [Real.sqrt_eq_rpow]
@@ -186,7 +186,7 @@ lemma integral_exp_combined_3d (γ t : ℝ) (hγ : 0 < γ) (A : ℝ³) :
       Real.exp (-(γ * t ^ 2) / p * ∑ i, (A i) ^ 2) * Real.exp (-p * ∑ i, (r i - P i) ^ 2) := by
     intro r
     calc
-      Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2) = Real.exp ((-γ * ∑ i, (r i) ^ 2) + (-(t ^ 2) * ∑ i, (r i - A i) ^ 2)) := by ring
+      Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2) = Real.exp ((-γ * ∑ i, (r i) ^ 2) + (-(t ^ 2) * ∑ i, (r i - A i) ^ 2)) := by ring_nf
       _ = Real.exp ((-(γ * t ^ 2) / p * ∑ i, (A i) ^ 2) + (-p * ∑ i, (r i - P i) ^ 2)) := by rw [h_exp_sum_eq r]
       _ = Real.exp (-(γ * t ^ 2) / p * ∑ i, (A i) ^ 2) * Real.exp (-p * ∑ i, (r i - P i) ^ 2) := by rw [Real.exp_add]
   set C := Real.exp (-(γ * t ^ 2) / p * ∑ i : Fin 3, (A i) ^ 2) with hC
@@ -218,7 +218,7 @@ lemma coulomb_eq_integral_ae (A : ℝ³) :
     (fun r => coulomb r A) =ᵐ[volume] fun r => (2 / Real.sqrt π) * ∫ t in Ioi (0 : ℝ), Real.exp (-(∑ i, (r i - A i) ^ 2) * t ^ 2) := by
   have h_ae_ne : ∀ᵐ r : (ℝ³), r ≠ A := by
     have h_null : volume ({A} : Set (ℝ³)) = 0 := measure_singleton A
-    rw [ae_iff]; simpa using h_null
+    rw [ae_iff]; simp
   filter_upwards [h_ae_ne] with r hr
   dsimp [coulomb]
   have h_sq_pos : 0 < ∑ i : Fin 3, (r i - A i) ^ 2 := by
@@ -262,7 +262,7 @@ lemma integral_Ioi_gaussian_sqrt_to_boys0 (γ S : ℝ) (hγ : 0 < γ) :
         (Real.sqrt (γ + t ^ 2)) ^ 3 = ((γ + t ^ 2) ^ (1/2 : ℝ)) ^ 3 := by rw [Real.sqrt_eq_rpow]
         _ = ((γ + t ^ 2) ^ (1/2 : ℝ)) ^ (3 : ℝ) := by norm_num
         _ = (γ + t ^ 2) ^ ((1/2 : ℝ) * (3 : ℝ)) := by rw [rpow_mul hpos (1/2 : ℝ) (3 : ℝ)]
-        _ = (γ + t ^ 2) ^ (3/2 : ℝ) := by ring
+        _ = (γ + t ^ 2) ^ (3/2 : ℝ) := by ring_nf
     -- (Real.sqrt (π/(γ+t²)))³ = (Real.sqrt π)³ / (γ+t²)^(3/2)
     have h_sqrt_pi_cube : (Real.sqrt (π / (γ + t ^ 2))) ^ 3 =
         ((Real.sqrt π) ^ 3) / ((γ + t ^ 2) ^ (3/2 : ℝ)) := by
@@ -515,7 +515,7 @@ lemma integral_exp_neg_mul_sq_coulomb (γ : ℝ) (hγ : 0 < γ) (A : ℝ³) :
           filter_upwards with r
           dsimp [f, g]
           rw [← Real.exp_add]
-          ring
+          ring_nf
   rw [h_swap]
   -- Step 3: Apply the 3D Gaussian integral formula (Lemma 5)
   have h_inner (t : ℝ) : (∫ r : ℝ³,
