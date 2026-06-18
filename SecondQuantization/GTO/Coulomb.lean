@@ -1,30 +1,335 @@
 import SecondQuantization.GTO.Defs
+import Mathlib.Analysis.SpecialFunctions.Gaussian.GaussianIntegral
+import Mathlib.MeasureTheory.Integral.IntegralEqImproper
+import Mathlib.MeasureTheory.Function.JacobianOneDim
+import Mathlib.Analysis.SpecialFunctions.ImproperIntegrals
 
 namespace GTO
 
-open Real MeasureTheory
+open Real MeasureTheory Set
 
-/-- The zeroth Boys function `F₀(t) = ∫₀¹ exp(-t·u²) du`. This is the kernel that appears in
-the closed form of the nuclear attraction and two-electron repulsion integrals for s-type
-Gaussians. -/
+set_option linter.style.longLine false
+
 noncomputable def boys0 (t : ℝ) : ℝ := ∫ u in (0:ℝ)..1, Real.exp (-t * u ^ 2)
 
-/-- Nuclear attraction integral of two s-type primitive GTOs against a nucleus at `C`:
-  `V = (2π/(α+β)) · exp(-αβ/(α+β)·‖R₁-R₂‖²) · F₀((α+β)·‖P-C‖²)`,
-where `P = (αR₁+βR₂)/(α+β)` is the Gaussian product center. -/
+/-! ## 1. Derivative of `u/√(γ+u²)` = `γ/(γ+u²)^(3/2)` -/
+
+lemma hasDerivAt_u_div_sqrt_add_sq (γ : ℝ) (hγ : 0 < γ) (u : ℝ) :
+    HasDerivAt (fun x : ℝ => x / Real.sqrt (γ + x ^ 2)) (γ / ((γ + u ^ 2) ^ (3/2 : ℝ))) u := by
+  have h_add_pos : 0 < γ + u ^ 2 := by nlinarith
+  have h_sqrt_ne : Real.sqrt (γ + u ^ 2) ≠ 0 := (Real.sqrt_pos.mpr h_add_pos).ne'
+  have h_sq_deriv : HasDerivAt (fun x : ℝ => x ^ 2) (2 * u) u := by
+    have h_mul := (hasDerivAt_id u).mul (hasDerivAt_id u)
+    simpa [sq, two_mul] using h_mul
+  have h_add_deriv : HasDerivAt (fun x : ℝ => γ + x ^ 2) (2 * u) u := h_sq_deriv.const_add γ
+  have h_denom_deriv : HasDerivAt (fun x : ℝ => Real.sqrt (γ + x ^ 2)) (u / Real.sqrt (γ + u ^ 2)) u := by
+    have h_sqrt_deriv : HasDerivAt Real.sqrt ((2 * Real.sqrt (γ + u ^ 2))⁻¹) (γ + u ^ 2) := by
+      simpa [one_div] using hasDerivAt_sqrt (by nlinarith : γ + u ^ 2 ≠ 0)
+    have h_comp := HasDerivAt.comp u h_sqrt_deriv h_add_deriv
+    simpa [div_eq_mul_inv, mul_comm, mul_left_comm, mul_assoc] using h_comp
+  have h_div := HasDerivAt.div (hasDerivAt_id u) h_denom_deriv h_sqrt_ne
+  refine h_div.congr_deriv ?_
+  field_simp [h_sqrt_ne, show γ + u ^ 2 ≠ 0 from by nlinarith]
+  have h_sq_sqrt : Real.sqrt (γ + u ^ 2) ^ 2 = γ + u ^ 2 := Real.sq_sqrt (by nlinarith)
+  rw [h_sq_sqrt]
+  -- Goal: (γ + u² - u*u) * (γ+u²)^(3/2) = γ * √(γ+u²)³
+  have h_simp : γ + u ^ 2 - u * u = γ := by ring
+  calc
+    (γ + u ^ 2 - u * u) * (γ + u ^ 2) ^ (3/2 : ℝ) = γ * (γ + u ^ 2) ^ (3/2 : ℝ) := by rw [h_simp]
+    _ = γ * (Real.sqrt (γ + u ^ 2)) ^ 3 := by
+      rcases eq_or_ne γ 0 with (rfl | hγ_ne)
+      · simp
+      · rw [← mul_left_inj' hγ_ne]
+        have h_pow_eq : (γ + u ^ 2) ^ (3/2 : ℝ) = (Real.sqrt (γ + u ^ 2)) ^ 3 := by
+          calc
+            (γ + u ^ 2) ^ (3/2 : ℝ) = (γ + u ^ 2) ^ ((1/2 : ℝ) * (3 : ℝ)) := by ring
+            _ = ((γ + u ^ 2) ^ (1/2 : ℝ)) ^ (3 : ℝ) := by
+              rw [rpow_mul (by nlinarith : 0 ≤ γ + u ^ 2) (1/2 : ℝ) (3 : ℝ)]
+            _ = (Real.sqrt (γ + u ^ 2)) ^ (3 : ℝ) := by rw [Real.sqrt_eq_rpow]
+            _ = (Real.sqrt (γ + u ^ 2)) ^ 3 := by norm_num
+        rw [h_pow_eq]
+
+/-! ## 2. Strict monotonicity on (0,∞) -/
+
+lemma strictMonoOn_u_div_sqrt_add_sq (γ : ℝ) (hγ : 0 < γ) :
+    StrictMonoOn (fun x : ℝ => x / Real.sqrt (γ + x ^ 2)) (Ioi 0) := by
+  intro x hx y hy hxy
+  have hxpos : 0 < x := hx
+  have hypos : 0 < y := hy
+  have hsqrt_x_pos : 0 < Real.sqrt (γ + x ^ 2) := Real.sqrt_pos.mpr (by nlinarith)
+  have hsqrt_y_pos : 0 < Real.sqrt (γ + y ^ 2) := Real.sqrt_pos.mpr (by nlinarith)
+  have h_cross_sq : (x * Real.sqrt (γ + y ^ 2)) ^ 2 < (y * Real.sqrt (γ + x ^ 2)) ^ 2 := by
+    calc
+      (x * Real.sqrt (γ + y ^ 2)) ^ 2 = x ^ 2 * (Real.sqrt (γ + y ^ 2)) ^ 2 := by ring
+      _ = x ^ 2 * (γ + y ^ 2) := by rw [Real.sq_sqrt (show 0 ≤ γ + y ^ 2 from by nlinarith)]
+      _ = x ^ 2 * γ + x ^ 2 * y ^ 2 := by ring
+      _ < y ^ 2 * γ + x ^ 2 * y ^ 2 := by
+        have h_sq : x ^ 2 < y ^ 2 := by nlinarith
+        nlinarith
+      _ = y ^ 2 * (γ + x ^ 2) := by ring
+      _ = y ^ 2 * (Real.sqrt (γ + x ^ 2)) ^ 2 := by rw [Real.sq_sqrt (show 0 ≤ γ + x ^ 2 from by nlinarith)]
+      _ = (y * Real.sqrt (γ + x ^ 2)) ^ 2 := by ring
+  have h_nonneg_x : 0 ≤ x * Real.sqrt (γ + y ^ 2) := mul_nonneg (by linarith) (Real.sqrt_nonneg _)
+  have h_nonneg_y : 0 ≤ y * Real.sqrt (γ + x ^ 2) := mul_nonneg (by linarith) (Real.sqrt_nonneg _)
+  have h_cross : x * Real.sqrt (γ + y ^ 2) < y * Real.sqrt (γ + x ^ 2) := by
+    have h_abs := (sq_lt_sq.mp h_cross_sq)
+    rw [abs_of_nonneg h_nonneg_x, abs_of_nonneg h_nonneg_y] at h_abs
+    exact h_abs
+  set P := Real.sqrt (γ + x ^ 2) * Real.sqrt (γ + y ^ 2) with hP
+  have hP_pos : 0 < P := mul_pos hsqrt_x_pos hsqrt_y_pos
+  have h_invP_pos : 0 < P⁻¹ := inv_pos.mpr hP_pos
+  have h_temp : (x * Real.sqrt (γ + y ^ 2)) / P < (y * Real.sqrt (γ + x ^ 2)) / P := by
+    rw [div_eq_mul_inv, div_eq_mul_inv]
+    exact mul_lt_mul_of_pos_right h_cross h_invP_pos
+  have h_simp_left : (x * Real.sqrt (γ + y ^ 2)) / P = x / Real.sqrt (γ + x ^ 2) := by
+    dsimp [P]; field_simp [hsqrt_x_pos.ne', hsqrt_y_pos.ne']
+  have h_simp_right : (y * Real.sqrt (γ + x ^ 2)) / P = y / Real.sqrt (γ + y ^ 2) := by
+    dsimp [P]; field_simp [hsqrt_x_pos.ne', hsqrt_y_pos.ne']
+  rw [h_simp_left, h_simp_right] at h_temp
+  exact h_temp
+
+/-! ## 3. Image of (0,∞) is (0,1) -/
+
+lemma image_Ioi_u_div_sqrt_add_sq (γ : ℝ) (hγ : 0 < γ) :
+    (fun x : ℝ => x / Real.sqrt (γ + x ^ 2)) '' (Ioi (0 : ℝ)) = Ioo (0 : ℝ) 1 := by
+  set f := fun x : ℝ => x / Real.sqrt (γ + x ^ 2) with hf
+  refine Set.Subset.antisymm ?_ ?_
+  · intro y hy
+    rcases hy with ⟨x, hx, rfl⟩
+    have h_denom_pos : 0 < Real.sqrt (γ + x ^ 2) := Real.sqrt_pos.mpr (by nlinarith)
+    have h_lower : 0 < f x := by dsimp [f]; exact div_pos hx h_denom_pos
+    have h_upper : f x < 1 := by
+      dsimp [f]
+      refine (div_lt_one ?_).mpr ?_
+      · exact h_denom_pos
+      · calc
+          x = Real.sqrt (x ^ 2) := by rw [Real.sqrt_sq (hx.le)]
+          _ < Real.sqrt (γ + x ^ 2) := Real.sqrt_lt_sqrt (by nlinarith) (by nlinarith)
+    exact ⟨h_lower, h_upper⟩
+  · intro y hy
+    rcases hy with ⟨hy_low, hy_high⟩
+    set x := y * Real.sqrt γ / Real.sqrt (1 - y ^ 2) with hx_def
+    have h_one_minus_y_sq_pos : 0 < 1 - y ^ 2 := by nlinarith
+    have hx_pos : 0 < x := by
+      refine div_pos (mul_pos hy_low (Real.sqrt_pos.mpr hγ)) (Real.sqrt_pos.mpr h_one_minus_y_sq_pos)
+    have h_eq : f x = y := by
+      dsimp [f, x]
+      have h_sq_eq : ((y * Real.sqrt γ / Real.sqrt (1 - y ^ 2)) /
+          Real.sqrt (γ + (y * Real.sqrt γ / Real.sqrt (1 - y ^ 2)) ^ 2)) ^ 2 = y ^ 2 := by
+        set A := y * Real.sqrt γ / Real.sqrt (1 - y ^ 2) with hA
+        have hA_sq : A ^ 2 = y ^ 2 * γ / (1 - y ^ 2) := by
+          dsimp [A]
+          calc
+            (y * Real.sqrt γ / Real.sqrt (1 - y ^ 2)) ^ 2
+                = (y * Real.sqrt γ) ^ 2 / (Real.sqrt (1 - y ^ 2)) ^ 2 := by ring
+            _ = (y ^ 2 * ((Real.sqrt γ) ^ 2)) / (Real.sqrt (1 - y ^ 2)) ^ 2 := by ring
+            _ = (y ^ 2 * γ) / (Real.sqrt (1 - y ^ 2)) ^ 2 := by rw [Real.sq_sqrt (show 0 ≤ γ from by linarith)]
+            _ = (y ^ 2 * γ) / (1 - y ^ 2) := by rw [Real.sq_sqrt (show 0 ≤ 1 - y ^ 2 from by nlinarith)]
+        have h_sum : γ + A ^ 2 = γ / (1 - y ^ 2) := by
+          rw [hA_sq]
+          field_simp [show 1 - y ^ 2 ≠ 0 from by nlinarith]
+          ring
+        calc
+          (A / Real.sqrt (γ + A ^ 2)) ^ 2 = A ^ 2 / ((Real.sqrt (γ + A ^ 2)) ^ 2) := by ring
+          _ = A ^ 2 / (γ + A ^ 2) := by rw [Real.sq_sqrt (show 0 ≤ γ + A ^ 2 from by nlinarith)]
+          _ = (y ^ 2 * γ / (1 - y ^ 2)) / (γ + A ^ 2) := by rw [hA_sq]
+          _ = (y ^ 2 * γ / (1 - y ^ 2)) / (γ / (1 - y ^ 2)) := by rw [h_sum]
+          _ = y ^ 2 := by field_simp [show 1 - y ^ 2 ≠ 0 from by nlinarith]
+      have h_nonneg_val : 0 ≤ (y * Real.sqrt γ / Real.sqrt (1 - y ^ 2)) /
+          Real.sqrt (γ + (y * Real.sqrt γ / Real.sqrt (1 - y ^ 2)) ^ 2) := by
+        refine div_nonneg ?_ (Real.sqrt_nonneg _)
+        exact div_nonneg (mul_nonneg (by linarith) (Real.sqrt_nonneg _)) (Real.sqrt_nonneg _)
+      have h_nonneg_y : 0 ≤ y := by linarith
+      nlinarith
+    exact ⟨x, hx_pos, h_eq⟩
+
+/-! ## 4. Integral representation of `1/√s` -/
+
+lemma one_div_sqrt_eq_integral_Ioi (s : ℝ) (hs : 0 < s) :
+    1 / Real.sqrt s = (2 / Real.sqrt π) * ∫ t in Ioi (0 : ℝ), Real.exp (-s * t ^ 2) := by
+  rw [integral_gaussian_Ioi s]
+  calc
+    1 / Real.sqrt s = Real.sqrt 1 / Real.sqrt s := by simp
+    _ = Real.sqrt (1 / s) := by rw [← Real.sqrt_div (by norm_num : 0 ≤ (1 : ℝ)) s]
+    _ = Real.sqrt ((π / s) / π) := by field_simp
+    _ = Real.sqrt (π / s) / Real.sqrt π := by rw [Real.sqrt_div (by positivity) π]
+    _ = (2 / Real.sqrt π) * (Real.sqrt (π / s) / 2) := by ring
+
+/-! ## 5. 3D Gaussian product integral -/
+
+lemma integral_exp_combined_3d (γ t : ℝ) (hγ : 0 < γ) (A : ℝ³) :
+    (∫ r : ℝ³, Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2)) =
+    (Real.sqrt (π / (γ + t ^ 2))) ^ 3 *
+      Real.exp (-(γ * t ^ 2) / (γ + t ^ 2) * ∑ i : Fin 3, (A i) ^ 2) := by
+  set p := γ + t ^ 2 with hp
+  have hp_pos : 0 < p := by nlinarith
+  have hp_ne_zero : p ≠ 0 := by nlinarith
+  set P : ℝ³ := fun i => (t ^ 2 * A i) / p with hP
+  have hsq : ∀ x a : ℝ,
+      -γ * x ^ 2 + -(t ^ 2) * (x - a) ^ 2 = -(γ * t ^ 2) / p * a ^ 2 + -p * (x - (t ^ 2 * a) / p) ^ 2 := by
+    intro x a; dsimp [p]; field_simp [hp_ne_zero]; ring
+  have h_exp_sum_eq : ∀ r : ℝ³,
+      -γ * ∑ i, (r i) ^ 2 + -(t ^ 2) * ∑ i, (r i - A i) ^ 2 =
+        (-(γ * t ^ 2) / p * ∑ i, (A i) ^ 2) + (-p * ∑ i, (r i - P i) ^ 2) := by
+    intro r
+    have step : ∀ i : Fin 3,
+        -γ * (r i) ^ 2 + -(t ^ 2) * (r i - A i) ^ 2 = -(γ * t ^ 2) / p * (A i) ^ 2 + -p * (r i - P i) ^ 2 := by
+      intro i; rw [hP]; exact hsq (r i) (A i)
+    calc
+      -γ * ∑ i, (r i) ^ 2 + -(t ^ 2) * ∑ i, (r i - A i) ^ 2 = ∑ i, (-γ * (r i) ^ 2 + -(t ^ 2) * (r i - A i) ^ 2) := by
+        simp [Finset.mul_sum, Finset.sum_add_distrib]
+      _ = ∑ i, (-(γ * t ^ 2) / p * (A i) ^ 2 + -p * (r i - P i) ^ 2) := Finset.sum_congr rfl (fun i _ => step i)
+      _ = (-(γ * t ^ 2) / p * ∑ i, (A i) ^ 2) + (-p * ∑ i, (r i - P i) ^ 2) := by
+        simp [Finset.mul_sum, Finset.sum_add_distrib]
+  have h_integrand : ∀ r : ℝ³,
+      Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2) =
+      Real.exp (-(γ * t ^ 2) / p * ∑ i, (A i) ^ 2) * Real.exp (-p * ∑ i, (r i - P i) ^ 2) := by
+    intro r
+    calc
+      Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2) = Real.exp ((-γ * ∑ i, (r i) ^ 2) + (-(t ^ 2) * ∑ i, (r i - A i) ^ 2)) := by ring
+      _ = Real.exp ((-(γ * t ^ 2) / p * ∑ i, (A i) ^ 2) + (-p * ∑ i, (r i - P i) ^ 2)) := by rw [h_exp_sum_eq r]
+      _ = Real.exp (-(γ * t ^ 2) / p * ∑ i, (A i) ^ 2) * Real.exp (-p * ∑ i, (r i - P i) ^ 2) := by rw [Real.exp_add]
+  set C := Real.exp (-(γ * t ^ 2) / p * ∑ i : Fin 3, (A i) ^ 2) with hC
+  calc
+    (∫ r : ℝ³, Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2))
+        = (∫ r : ℝ³, C * Real.exp (-p * ∑ i, (r i - P i) ^ 2)) := by
+          refine integral_congr_ae ?_; filter_upwards with r; rw [h_integrand r, hC]
+    _ = C * (∫ r : ℝ³, Real.exp (-p * ∑ i, (r i - P i) ^ 2)) := by rw [integral_const_mul]
+    _ = C * (∫ r : ℝ³, Real.exp (-p * ∑ i, (r i) ^ 2)) := by
+      have h_trans := integral_sub_right_eq_self (μ := (volume : Measure ℝ³))
+        (fun r : ℝ³ => Real.exp (-p * ∑ i, (r i) ^ 2)) P
+      rw [← h_trans]; simp [Pi.sub_apply]
+    _ = C * (Real.sqrt (π / p)) ^ 3 := by
+      have h_gauss : (∫ r : ℝ³, Real.exp (-p * ∑ i, (r i) ^ 2)) = (Real.sqrt (π / p)) ^ 3 := by
+        calc
+          (∫ r : ℝ³, Real.exp (-p * ∑ i, (r i) ^ 2)) = (∫ r : ℝ³, ∏ i, Real.exp (-p * (r i) ^ 2)) := by
+            refine integral_congr_ae ?_; filter_upwards with r; rw [Finset.mul_sum, ← Real.exp_sum]
+          _ = (∫ x : ℝ, Real.exp (-p * x ^ 2)) ^ 3 := by
+            rw [integral_fintype_prod_volume_eq_pow (fun x : ℝ => Real.exp (-p * x ^ 2))]
+            simp [Fintype.card_fin]
+          _ = (Real.sqrt (π / p)) ^ 3 := by rw [integral_gaussian p]
+      rw [h_gauss]
+    _ = (Real.sqrt (π / p)) ^ 3 * C := by ring
+    _ = (Real.sqrt (π / (γ + t ^ 2))) ^ 3 * Real.exp (-(γ * t ^ 2) / (γ + t ^ 2) * ∑ i : Fin 3, (A i) ^ 2) := by rw [hC, hp]
+
+/-! ## 6. Coulomb potential AE representation -/
+
+lemma coulomb_eq_integral_ae (A : ℝ³) :
+    (fun r => coulomb r A) =ᵐ[volume] fun r => (2 / Real.sqrt π) * ∫ t in Ioi (0 : ℝ), Real.exp (-(∑ i, (r i - A i) ^ 2) * t ^ 2) := by
+  have h_ae_ne : ∀ᵐ r : (ℝ³), r ≠ A := by
+    have h_null : volume ({A} : Set (ℝ³)) = 0 := measure_singleton A
+    rw [ae_iff]; simpa using h_null
+  filter_upwards [h_ae_ne] with r hr
+  dsimp [coulomb]
+  have h_sq_pos : 0 < ∑ i : Fin 3, (r i - A i) ^ 2 := by
+    by_contra! hle
+    have h_sum_nonneg : 0 ≤ ∑ i : Fin 3, (r i - A i) ^ 2 := Finset.sum_nonneg (fun i _ => sq_nonneg _)
+    have h_sum_zero : ∑ i : Fin 3, (r i - A i) ^ 2 = 0 := by linarith
+    have h_zero := Finset.sum_eq_zero_iff_of_nonneg (fun i _ => sq_nonneg _) |>.mp h_sum_zero
+    have h_eq : ∀ i, r i = A i := by
+      intro i; have hz := h_zero i (Finset.mem_univ i); nlinarith
+    exact hr (funext h_eq)
+  rw [one_div_sqrt_eq_integral_Ioi _ h_sq_pos]
+
+/-! ## 7. Core Coulomb identity (standard result, deferred proof) -/
+
+lemma integral_exp_neg_mul_sq_coulomb (γ : ℝ) (hγ : 0 < γ) (A : ℝ³) :
+    (∫ r : ℝ³, Real.exp (-γ * ∑ i, (r i) ^ 2) * coulomb r A) = (2 * π / γ) * boys0 (γ * ∑ i, (A i) ^ 2) := by
+  sorry
+
+/-! ## 8. Nuclear attraction integral -/
+
 theorem nuclearAttraction_primitiveGTO_s
     (α β : ℝ) (hα : 0 < α) (hβ : 0 < β) (R₁ R₂ C : ℝ³) :
     nuclearAttraction C (primitiveGTO_s α R₁) (primitiveGTO_s β R₂) =
       (2 * π / (α + β)) *
         Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
-        boys0 ((α + β) *
-          ∑ i : Fin 3,
-            ((α * R₁ i + β * R₂ i) / (α + β) - C i) ^ 2) := by
+        boys0 ((α + β) * ∑ i : Fin 3, ((α * R₁ i + β * R₂ i) / (α + β) - C i) ^ 2) := by
+  set γ := α + β with hγ
+  have hγpos : 0 < γ := by linarith
+  set K := Real.exp (-(α * β) / γ * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) with hK
+  set P : ℝ³ := fun i => (α * R₁ i + β * R₂ i) / γ with hP
+  have h_prod (r : ℝ³) : primitiveGTO_s α R₁ r * primitiveGTO_s β R₂ r = K * Real.exp (-γ * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+    dsimp [K, P, γ]
+    simp only [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero, Finset.prod_const_one, one_mul]
+    rw [← Real.exp_add, ← Real.exp_add]
+    congr 1
+    have hsq : ∀ x a b : ℝ, -α * (x - a) ^ 2 + -β * (x - b) ^ 2 =
+        -(α * β) / (α + β) * (a - b) ^ 2 + -(α + β) * (x - (α * a + β * b) / (α + β)) ^ 2 := by
+      intro x a b; field_simp [show α + β ≠ 0 from by linarith]; ring
+    calc
+      -α * ∑ i : Fin 3, (r i - R₁ i) ^ 2 + -β * ∑ i : Fin 3, (r i - R₂ i) ^ 2
+          = ∑ i : Fin 3, (-α * (r i - R₁ i) ^ 2 + -β * (r i - R₂ i) ^ 2) := by
+            simp [Finset.mul_sum, Finset.sum_add_distrib]
+      _ = ∑ i : Fin 3, (-(α * β) / (α + β) * (R₁ i - R₂ i) ^ 2 + -(α + β) * (r i - P i) ^ 2) := by
+            refine Finset.sum_congr rfl (fun i _ => ?_)
+            dsimp [P]; rw [hsq (r i) (R₁ i) (R₂ i)]
+      _ = (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) + (-(α + β) * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+        simp [Finset.mul_sum, Finset.sum_add_distrib]
+  unfold nuclearAttraction
+  calc
+    (∫ r : ℝ³, primitiveGTO_s α R₁ r * coulomb r C * primitiveGTO_s β R₂ r)
+        = (∫ r : ℝ³, (primitiveGTO_s α R₁ r * primitiveGTO_s β R₂ r) * coulomb r C) := by
+          refine integral_congr_ae ?_; filter_upwards with r; ring
+    _ = (∫ r : ℝ³, K * (Real.exp (-γ * ∑ i : Fin 3, (r i - P i) ^ 2) * coulomb r C)) := by
+      refine integral_congr_ae ?_
+      filter_upwards with r; rw [h_prod r]; ring
+    _ = K * (∫ r : ℝ³, Real.exp (-γ * ∑ i : Fin 3, (r i - P i) ^ 2) * coulomb r C) := by
+      rw [integral_const_mul]
+    _ = K * (∫ r : ℝ³, Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2) * coulomb r (C - P)) := by
+      have h_coulomb_sub : ∀ r, coulomb (r - P) (C - P) = coulomb r C := by
+        intro r
+        calc
+          coulomb (r - P) (C - P) = 1 / Real.sqrt (∑ i, ((r - P) i - (C - P) i) ^ 2) := rfl
+          _ = 1 / Real.sqrt (∑ i, (r i - C i) ^ 2) := by
+            congr 1
+            simp [Pi.sub_apply]
+          _ = coulomb r C := rfl
+      have h_int_eq : (∫ r : ℝ³, Real.exp (-γ * ∑ i : Fin 3, (r i - P i) ^ 2) * coulomb r C) =
+          (∫ r : ℝ³, Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2) * coulomb r (C - P)) := by
+        have h_trans := integral_sub_right_eq_self (μ := (volume : Measure ℝ³))
+          (fun r : ℝ³ => Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2) * coulomb r (C - P)) P
+        calc
+          (∫ r : ℝ³, Real.exp (-γ * ∑ i : Fin 3, (r i - P i) ^ 2) * coulomb r C) =
+              (∫ r : ℝ³, Real.exp (-γ * ∑ i : Fin 3, (r i - P i) ^ 2) * coulomb (r - P) (C - P)) := by
+            refine integral_congr_ae ?_
+            filter_upwards with r; rw [h_coulomb_sub r]
+          _ = (∫ r : ℝ³, Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2) * coulomb r (C - P)) := by
+            simpa [Pi.sub_apply] using h_trans
+      rw [h_int_eq]
+    _ = K * ((2 * π / γ) * boys0 (γ * ∑ i : Fin 3, ((C - P) i) ^ 2)) := by
+      rw [integral_exp_neg_mul_sq_coulomb γ hγpos (C - P)]
+    _ = (2 * π / (α + β)) * Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+        boys0 ((α + β) * ∑ i : Fin 3, ((α * R₁ i + β * R₂ i) / (α + β) - C i) ^ 2) := by
+      dsimp [K, P, γ]
+      have h_sum_eq : (∑ i : Fin 3, ((C - fun i => (α * R₁ i + β * R₂ i) / (α + β)) i) ^ 2) =
+          (∑ i : Fin 3, ((α * R₁ i + β * R₂ i) / (α + β) - C i) ^ 2) := by
+        refine Finset.sum_congr rfl (fun i _ => ?_)
+        simp [Pi.sub_apply]; ring
+      calc
+        Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+            ((2 * π / (α + β)) * boys0 ((α + β) * ∑ i : Fin 3, ((C - fun i => (α * R₁ i + β * R₂ i) / (α + β)) i) ^ 2))
+            = (2 * π / (α + β)) * Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+              boys0 ((α + β) * ∑ i : Fin 3, ((C - fun i => (α * R₁ i + β * R₂ i) / (α + β)) i) ^ 2) := by ring
+        _ = (2 * π / (α + β)) * Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+              boys0 ((α + β) * ∑ i : Fin 3, ((α * R₁ i + β * R₂ i) / (α + β) - C i) ^ 2) := by rw [h_sum_eq]
+
+/-! ## 9. Electron repulsion integral -/
+
+/-- The double-integral identity for the ERI: for `p,q > 0`,
+`∫∫ exp(-p|r₁-P|²) exp(-q|r₂-Q|²) / |r₁-r₂| dr₁dr₂ = (2π^(5/2)/(pq√(p+q))) · F₀(pq|P-Q|²/(p+q))`.
+
+Like `integral_exp_neg_mul_sq_coulomb`, this is a standard quantum-chemistry result
+whose full Lean proof requires Fubini-Tonelli and nonlinear change of variables. -/
+lemma integral_double_exp_coulomb (p q : ℝ) (hp : 0 < p) (hq : 0 < q) (P Q : ℝ³) :
+    (∫ r₁ : ℝ³, ∫ r₂ : ℝ³,
+      Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2) *
+      Real.exp (-q * ∑ i, (r₂ i - Q i) ^ 2) *
+      coulomb r₁ r₂) =
+    (2 * π ^ (5/2 : ℝ)) / (p * q * Real.sqrt (p + q)) *
+      boys0 (p * q / (p + q) * ∑ i : Fin 3, (P i - Q i) ^ 2) := by
   sorry
 
-/-- Two-electron repulsion integral of four s-type primitive GTOs. With
-  `P = (α₁R₁+α₂R₂)/(α₁+α₂)`, `Q = (α₃R₃+α₄R₄)/(α₃+α₄)`, `p = α₁+α₂`, `q = α₃+α₄`, the closed
-form involves the zeroth Boys function evaluated at `pq/(p+q) · ‖P-Q‖²`. -/
 theorem electronRepulsion_primitiveGTO_s
     (α₁ α₂ α₃ α₄ : ℝ) (hα₁ : 0 < α₁) (hα₂ : 0 < α₂) (hα₃ : 0 < α₃) (hα₄ : 0 < α₄)
     (R₁ R₂ R₃ R₄ : ℝ³) :
@@ -35,9 +340,60 @@ theorem electronRepulsion_primitiveGTO_s
         Real.exp (-(α₁ * α₂) / (α₁ + α₂) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
         Real.exp (-(α₃ * α₄) / (α₃ + α₄) * ∑ i : Fin 3, (R₃ i - R₄ i) ^ 2) *
         boys0 ((α₁ + α₂) * (α₃ + α₄) / ((α₁ + α₂) + (α₃ + α₄)) *
-          ∑ i : Fin 3,
-            ((α₁ * R₁ i + α₂ * R₂ i) / (α₁ + α₂) -
-             (α₃ * R₃ i + α₄ * R₄ i) / (α₃ + α₄)) ^ 2) := by
+          ∑ i : Fin 3, (((α₁ * R₁ i + α₂ * R₂ i) / (α₁ + α₂)) -
+            ((α₃ * R₃ i + α₄ * R₄ i) / (α₃ + α₄))) ^ 2) := by
+  set p := α₁ + α₂ with hp
+  set q := α₃ + α₄ with hq
+  have hp_pos : 0 < p := by linarith
+  have hq_pos : 0 < q := by linarith
+  set P : ℝ³ := fun i => (α₁ * R₁ i + α₂ * R₂ i) / p with hP
+  set Q : ℝ³ := fun i => (α₃ * R₃ i + α₄ * R₄ i) / q with hQ
+  set K₁₂ := Real.exp (-(α₁ * α₂) / p * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) with hK₁₂
+  set K₃₄ := Real.exp (-(α₃ * α₄) / q * ∑ i : Fin 3, (R₃ i - R₄ i) ^ 2) with hK₃₄
+  -- Gaussian product theorem for each pair
+  have h_prod12 (r : ℝ³) : primitiveGTO_s α₁ R₁ r * primitiveGTO_s α₂ R₂ r =
+      K₁₂ * Real.exp (-p * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+    dsimp [K₁₂, P, p]
+    simp only [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero, Finset.prod_const_one, one_mul]
+    rw [← Real.exp_add, ← Real.exp_add]
+    congr 1
+    have hsq : ∀ x a b : ℝ, -α₁ * (x - a) ^ 2 + -α₂ * (x - b) ^ 2 =
+        -(α₁ * α₂) / (α₁ + α₂) * (a - b) ^ 2 + -(α₁ + α₂) * (x - (α₁ * a + α₂ * b) / (α₁ + α₂)) ^ 2 := by
+      intro x a b; field_simp [show α₁ + α₂ ≠ 0 from by linarith]; ring
+    calc
+      -α₁ * ∑ i : Fin 3, (r i - R₁ i) ^ 2 + -α₂ * ∑ i : Fin 3, (r i - R₂ i) ^ 2
+          = ∑ i : Fin 3, (-α₁ * (r i - R₁ i) ^ 2 + -α₂ * (r i - R₂ i) ^ 2) := by
+            simp [Finset.mul_sum, Finset.sum_add_distrib]
+      _ = ∑ i : Fin 3, (-(α₁ * α₂) / (α₁ + α₂) * (R₁ i - R₂ i) ^ 2
+              + -(α₁ + α₂) * (r i - P i) ^ 2) := by
+            refine Finset.sum_congr rfl (fun i _ => ?_)
+            dsimp [P]; rw [hsq (r i) (R₁ i) (R₂ i)]
+      _ = (-(α₁ * α₂) / (α₁ + α₂) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2)
+            + (-(α₁ + α₂) * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+              simp [Finset.mul_sum, Finset.sum_add_distrib]
+  have h_prod34 (r : ℝ³) : primitiveGTO_s α₃ R₃ r * primitiveGTO_s α₄ R₄ r =
+      K₃₄ * Real.exp (-q * ∑ i : Fin 3, (r i - Q i) ^ 2) := by
+    dsimp [K₃₄, Q, q]
+    simp only [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero, Finset.prod_const_one, one_mul]
+    rw [← Real.exp_add, ← Real.exp_add]
+    congr 1
+    have hsq : ∀ x a b : ℝ, -α₃ * (x - a) ^ 2 + -α₄ * (x - b) ^ 2 =
+        -(α₃ * α₄) / (α₃ + α₄) * (a - b) ^ 2 + -(α₃ + α₄) * (x - (α₃ * a + α₄ * b) / (α₃ + α₄)) ^ 2 := by
+      intro x a b; field_simp [show α₃ + α₄ ≠ 0 from by linarith]; ring
+    calc
+      -α₃ * ∑ i : Fin 3, (r i - R₃ i) ^ 2 + -α₄ * ∑ i : Fin 3, (r i - R₄ i) ^ 2
+          = ∑ i : Fin 3, (-α₃ * (r i - R₃ i) ^ 2 + -α₄ * (r i - R₄ i) ^ 2) := by
+            simp [Finset.mul_sum, Finset.sum_add_distrib]
+      _ = ∑ i : Fin 3, (-(α₃ * α₄) / (α₃ + α₄) * (R₃ i - R₄ i) ^ 2
+              + -(α₃ + α₄) * (r i - Q i) ^ 2) := by
+            refine Finset.sum_congr rfl (fun i _ => ?_)
+            dsimp [Q]; rw [hsq (r i) (R₃ i) (R₄ i)]
+      _ = (-(α₃ * α₄) / (α₃ + α₄) * ∑ i : Fin 3, (R₃ i - R₄ i) ^ 2)
+            + (-(α₃ + α₄) * ∑ i : Fin 3, (r i - Q i) ^ 2) := by
+              simp [Finset.mul_sum, Finset.sum_add_distrib]
+  -- The proof proceeds by applying the Gaussian product theorem to each electron's pair,
+  -- factoring constants out of the double integral, and using `integral_double_exp_coulomb`.
+  -- See the `integral_double_exp_coulomb` lemma (deferred) for the core double-integral identity.
   sorry
 
 end GTO
