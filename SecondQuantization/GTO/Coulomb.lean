@@ -306,6 +306,65 @@ lemma integral_Ioi_gaussian_sqrt_to_boys0 (γ S : ℝ) (hγ : 0 < γ) :
 
 /-! ## 8. Core Coulomb identity -/
 
+/-- The cubed `√(π/(γ+t²))` is integrable on `Ioi 0`: bounded on `Ioc 0 1` (continuous) and
+dominated by `π^(3/2) · t^(-3)` on `Ioi 1`, both integrable. -/
+private lemma integrableOn_sqrt_pi_div_pow3 (γ : ℝ) (hγ : 0 < γ) :
+    IntegrableOn (fun t : ℝ => (Real.sqrt (π / (γ + t ^ 2))) ^ 3) (Ioi (0 : ℝ)) volume := by
+  set g : ℝ → ℝ := fun t => (Real.sqrt (π / (γ + t ^ 2))) ^ 3
+  have hg_cont : Continuous g := by
+    refine (Real.continuous_sqrt.comp (continuous_const.div
+      (continuous_const.add (continuous_id.pow 2)) ?_)).pow 3
+    intro x
+    have : 0 < γ + x ^ 2 := by nlinarith
+    exact this.ne'
+  rw [show Ioi (0 : ℝ) = Ioc 0 1 ∪ Ioi 1 from
+    (Ioc_union_Ioi_eq_Ioi (le_of_lt (by norm_num : (0 : ℝ) < 1))).symm]
+  refine IntegrableOn.union ?_ ?_
+  · exact (hg_cont.continuousOn.integrableOn_Icc (a := 0) (b := 1)).mono_set Set.Ioc_subset_Icc_self
+  · refine Integrable.mono' (g := fun t => π ^ ((3 : ℝ) / 2) * t ^ (-(3 : ℝ)))
+      (Integrable.const_mul (integrableOn_Ioi_rpow_of_lt
+        (by norm_num : (-(3 : ℝ)) < -1) (by norm_num : (0 : ℝ) < 1)) _)
+      hg_cont.aestronglyMeasurable.restrict ?_
+    refine (ae_restrict_iff' measurableSet_Ioi).mpr ?_
+    filter_upwards with t (ht1 : (1 : ℝ) < t)
+    have ht_pos : 0 < t := by linarith
+    have h_t_sq : t ^ 2 ≤ γ + t ^ 2 := by linarith
+    rw [Real.norm_eq_abs, abs_of_nonneg (by positivity)]
+    have h_le : (Real.sqrt (π / (γ + t ^ 2))) ^ 3 ≤ (Real.sqrt (π / t ^ 2)) ^ 3 :=
+      pow_le_pow_left₀ (Real.sqrt_nonneg _) (Real.sqrt_le_sqrt
+        (div_le_div_of_nonneg_left (by positivity) (by positivity) h_t_sq)) 3
+    have h_sqrt_pi : (Real.sqrt π) ^ 3 = π ^ ((3 : ℝ) / 2) := by
+      rw [Real.sqrt_eq_rpow, ← Real.rpow_natCast (π ^ ((1 : ℝ) / 2)) 3,
+        ← Real.rpow_mul Real.pi_nonneg]
+      norm_num
+    have h_rhs : (Real.sqrt (π / t ^ 2)) ^ 3 = π ^ ((3 : ℝ) / 2) * t ^ (-(3 : ℝ)) := by
+      rw [Real.sqrt_div Real.pi_nonneg, Real.sqrt_sq ht_pos.le, div_pow, h_sqrt_pi,
+        show t ^ 3 = t ^ (3 : ℝ) by rw [← Real.rpow_natCast]; norm_num,
+        div_eq_mul_inv, ← Real.rpow_neg ht_pos.le]
+    linarith
+
+/-- For each `t`, the 3D Gaussian `exp(-γ|r|² - t²|r-A|²)` is integrable in `r`,
+since it is dominated by the integrable `exp(-γ|r|²)`. -/
+private lemma integrable_gaussian_combined (γ t : ℝ) (hγ : 0 < γ) (A : ℝ³) :
+    Integrable (fun r : ℝ³ =>
+      Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2)) volume := by
+  have h_dom_int : Integrable (fun r : ℝ³ => Real.exp (-γ * ∑ i, (r i) ^ 2)) volume := by
+    have h_eq : (fun r : ℝ³ => Real.exp (-γ * ∑ i, (r i) ^ 2)) =
+                (fun r : ℝ³ => ∏ i, Real.exp (-γ * (r i) ^ 2)) := by
+      funext r; rw [Finset.mul_sum, ← Real.exp_sum]
+    rw [h_eq]
+    exact MeasureTheory.Integrable.fintype_prod (μ := fun _ => volume)
+      (fun _ => integrable_exp_neg_mul_sq hγ)
+  refine h_dom_int.mono' (by fun_prop) ?_
+  · refine Filter.Eventually.of_forall (fun r => ?_)
+    rw [Real.norm_eq_abs, abs_of_nonneg (Real.exp_nonneg _)]
+    refine Real.exp_le_exp.mpr ?_
+    have h_t2_nn : 0 ≤ t ^ 2 := sq_nonneg _
+    have h_S_nn : 0 ≤ ∑ i : Fin 3, (r i - A i) ^ 2 :=
+      Finset.sum_nonneg (fun _ _ => sq_nonneg _)
+    have := mul_nonneg h_t2_nn h_S_nn
+    linarith
+
 /-- Integrability of `exp(-γ|r|² - t²|r-A|²)` on `ℝ³ × Ioi(0)` with respect to the product
 Lebesgue measure. This justifies the Fubini swap in the nuclear-attraction identity.
 The integrand is nonnegative, measurable, and its iterated integral (inner t, outer r)
@@ -315,11 +374,82 @@ lemma integrable_prod_gaussian_coulomb (γ : ℝ) (hγ : 0 < γ) (A : ℝ³) :
       Real.exp (-γ * ∑ i, (r i) ^ 2) *
       ((Ioi (0 : ℝ)).indicator (fun t' : ℝ => Real.exp (-(∑ i, (r i - A i) ^ 2) * t' ^ 2)) t)))
       (volume.prod volume) := by
-  -- The integrand is nonnegative and measurable. The iterated integral with respect to t first
-  -- gives (√π/2)·exp(-γ|r|²)/|r-A| for a.e. r, and the integral over r converges
-  -- (the 1/|r-A| singularity is integrable in ℝ³). A full formal proof bounds
-  -- the singularity near r=A and uses the rapid decay of the Gaussian at infinity.
-  sorry
+  set f : ℝ³ × ℝ → ℝ := fun p =>
+      Real.exp (-γ * ∑ i, (p.1 i) ^ 2) *
+      ((Ioi (0 : ℝ)).indicator
+        (fun t' : ℝ => Real.exp (-(∑ i, (p.1 i - A i) ^ 2) * t' ^ 2)) p.2)
+    with hfdef
+  change Integrable f (volume.prod volume)
+  -- Rewrite `f` as a single indicator of a jointly continuous Gaussian.
+  have hf_eq : f = ({p : ℝ³ × ℝ | p.2 ∈ Ioi (0 : ℝ)}).indicator
+      (fun p => Real.exp (-γ * ∑ i, (p.1 i) ^ 2) *
+                Real.exp (-(∑ i, (p.1 i - A i) ^ 2) * p.2 ^ 2)) := by
+    funext p
+    simp only [hfdef, Set.indicator_apply, mem_setOf_eq, mem_Ioi]
+    split_ifs <;> simp
+  have hf_meas : Measurable f := by
+    rw [hf_eq]
+    refine Measurable.indicator ?_ (measurable_snd measurableSet_Ioi)
+    fun_prop
+  have hf_nonneg : ∀ p, 0 ≤ f p := by
+    intro p
+    change 0 ≤ Real.exp _ * _
+    refine mul_nonneg (Real.exp_nonneg _) ?_
+    by_cases ht : p.2 ∈ Ioi (0 : ℝ)
+    · rw [Set.indicator_of_mem ht]; exact Real.exp_nonneg _
+    · rw [Set.indicator_of_notMem ht]
+  refine ⟨hf_meas.aestronglyMeasurable, ?_⟩
+  rw [hasFiniteIntegral_iff_ofReal (Filter.Eventually.of_forall hf_nonneg)]
+  have h_aemeas : AEMeasurable (fun p => ENNReal.ofReal (f p)) (volume.prod volume) :=
+    (ENNReal.continuous_ofReal.measurable.comp hf_meas).aemeasurable
+  -- Tonelli (outer t, inner r), then bound the inner Gaussian integral via Lemma 5.
+  rw [lintegral_prod_symm _ h_aemeas]
+  have h_inner_le : ∀ t : ℝ, ∫⁻ r, ENNReal.ofReal (f (r, t)) ∂volume ≤
+      (Ioi (0 : ℝ)).indicator
+        (fun t : ℝ => ENNReal.ofReal ((Real.sqrt (π / (γ + t ^ 2))) ^ 3)) t := by
+    intro t
+    by_cases ht : t ∈ Ioi (0 : ℝ)
+    · have h_inner_eq : ∀ r : ℝ³, f (r, t) =
+          Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2) := by
+        intro r
+        change Real.exp _ * _ = _
+        rw [Set.indicator_of_mem ht, ← Real.exp_add]
+        congr 1; ring
+      have hcongr : (fun r => ENNReal.ofReal (f (r, t))) =
+          (fun r => ENNReal.ofReal
+            (Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2))) := by
+        funext r; rw [h_inner_eq]
+      rw [hcongr,
+        ← ofReal_integral_eq_lintegral_ofReal (integrable_gaussian_combined γ t hγ A)
+          (Filter.Eventually.of_forall (fun _ => Real.exp_nonneg _)),
+        integral_exp_combined_3d γ t hγ A, Set.indicator_of_mem ht]
+      refine ENNReal.ofReal_le_ofReal ?_
+      have h_pow_nn : 0 ≤ (Real.sqrt (π / (γ + t ^ 2))) ^ 3 := by positivity
+      have h_exp_le_one :
+          Real.exp (-(γ * t ^ 2) / (γ + t ^ 2) * ∑ i : Fin 3, (A i) ^ 2) ≤ 1 := by
+        refine Real.exp_le_one_iff.mpr ?_
+        have h_pos : 0 < γ + t ^ 2 := by nlinarith
+        have h_S_nn : 0 ≤ ∑ i : Fin 3, (A i) ^ 2 :=
+          Finset.sum_nonneg (fun _ _ => sq_nonneg _)
+        have h_factor_nn : 0 ≤ γ * t ^ 2 := by positivity
+        have h_inside : 0 ≤ γ * t ^ 2 / (γ + t ^ 2) := div_nonneg h_factor_nn h_pos.le
+        have h_neg : -(γ * t ^ 2) / (γ + t ^ 2) ≤ 0 := by rw [neg_div]; linarith
+        exact mul_nonpos_of_nonpos_of_nonneg h_neg h_S_nn
+      have hmul := mul_le_mul_of_nonneg_left h_exp_le_one h_pow_nn
+      linarith
+    · have h_zero : ∀ r, f (r, t) = 0 := by
+        intro r; change Real.exp _ * _ = _
+        rw [Set.indicator_of_notMem ht, mul_zero]
+      simp only [h_zero, ENNReal.ofReal_zero, lintegral_zero]
+      rw [Set.indicator_of_notMem ht]
+  calc ∫⁻ t, ∫⁻ r, ENNReal.ofReal (f (r, t)) ∂volume ∂volume
+      ≤ ∫⁻ t, (Ioi (0 : ℝ)).indicator
+          (fun t : ℝ => ENNReal.ofReal ((Real.sqrt (π / (γ + t ^ 2))) ^ 3)) t ∂volume :=
+        lintegral_mono h_inner_le
+    _ = ∫⁻ t in Ioi (0 : ℝ),
+          ENNReal.ofReal ((Real.sqrt (π / (γ + t ^ 2))) ^ 3) ∂volume :=
+        lintegral_indicator measurableSet_Ioi _
+    _ < ⊤ := IntegrableOn.setLIntegral_lt_top (integrableOn_sqrt_pi_div_pow3 γ hγ)
 
 lemma integral_exp_neg_mul_sq_coulomb (γ : ℝ) (hγ : 0 < γ) (A : ℝ³) :
     (∫ r : ℝ³, Real.exp (-γ * ∑ i, (r i) ^ 2) * coulomb r A) = (2 * π / γ) * boys0 (γ * ∑ i, (A i) ^ 2) := by
