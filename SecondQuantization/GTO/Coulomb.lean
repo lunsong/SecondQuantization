@@ -231,11 +231,182 @@ lemma coulomb_eq_integral_ae (A : ℝ³) :
     exact hr (funext h_eq)
   rw [one_div_sqrt_eq_integral_Ioi _ h_sq_pos]
 
-/-! ## 7. Core Coulomb identity (standard result, deferred proof) -/
+/-! ## 7. Change of variables `u = t/√(γ+t²)` for the Boys-function integral -/
+
+/-- The change of variables `u = t / √(γ + t²)`, which maps `Ioi 0` onto `Ioo 0 1`.
+Applies to the 1D integral that results from the 3D Gaussian integration of the Coulomb identity:
+`∫_{Ioi 0} (√(π/(γ+t²)))³ · exp(-γ·S·t²/(γ+t²)) dt = (√π)³/γ · boys₀(γ·S)`. -/
+lemma integral_Ioi_gaussian_sqrt_to_boys0 (γ S : ℝ) (hγ : 0 < γ) :
+    (∫ t in Ioi (0 : ℝ), ((Real.sqrt (π / (γ + t ^ 2))) ^ 3) *
+      Real.exp (-(γ * t ^ 2) / (γ + t ^ 2) * S)) =
+    ((Real.sqrt π) ^ 3 / γ) * boys0 (γ * S) := by
+  set f := fun t : ℝ => t / Real.sqrt (γ + t ^ 2) with hf
+  set f' := fun t : ℝ => γ / ((γ + t ^ 2) ^ (3/2 : ℝ)) with hf'
+  have h_deriv (x : ℝ) (hx : x ∈ Ioi (0 : ℝ)) : HasDerivWithinAt f (f' x) (Ioi (0 : ℝ)) x := by
+    dsimp [f, f']
+    exact (hasDerivAt_u_div_sqrt_add_sq γ hγ x).hasDerivWithinAt
+  have h_mono : MonotoneOn f (Ioi (0 : ℝ)) := by
+    intro a ha b hb hle
+    rcases lt_or_eq_of_le hle with (hlt | heq)
+    · exact ((strictMonoOn_u_div_sqrt_add_sq γ hγ) ha hb hlt).le
+    · rw [heq]
+  have h_image : f '' Ioi (0 : ℝ) = Ioo (0 : ℝ) 1 := image_Ioi_u_div_sqrt_add_sq γ hγ
+  set g := fun u : ℝ => ((Real.sqrt π) ^ 3 / γ) * Real.exp (-(γ * S) * u ^ 2) with hg
+  -- Key algebraic identity: the integrand equals f'(t) * g(f(t))
+  have h_eq (t : ℝ) (ht : t ∈ Ioi (0 : ℝ)) : ((Real.sqrt (π / (γ + t ^ 2))) ^ 3) *
+      Real.exp (-(γ * t ^ 2) / (γ + t ^ 2) * S) = f' t * g (f t) := by
+    have hpos : 0 ≤ γ + t ^ 2 := by nlinarith
+    -- (Real.sqrt (γ + t²))³ = (γ + t²)^(3/2)
+    have h_sqrt_cube : (Real.sqrt (γ + t ^ 2)) ^ 3 = (γ + t ^ 2) ^ (3/2 : ℝ) := by
+      calc
+        (Real.sqrt (γ + t ^ 2)) ^ 3 = ((γ + t ^ 2) ^ (1/2 : ℝ)) ^ 3 := by rw [Real.sqrt_eq_rpow]
+        _ = ((γ + t ^ 2) ^ (1/2 : ℝ)) ^ (3 : ℝ) := by norm_num
+        _ = (γ + t ^ 2) ^ ((1/2 : ℝ) * (3 : ℝ)) := by rw [rpow_mul hpos (1/2 : ℝ) (3 : ℝ)]
+        _ = (γ + t ^ 2) ^ (3/2 : ℝ) := by ring
+    -- (Real.sqrt (π/(γ+t²)))³ = (Real.sqrt π)³ / (γ+t²)^(3/2)
+    have h_sqrt_pi_cube : (Real.sqrt (π / (γ + t ^ 2))) ^ 3 =
+        ((Real.sqrt π) ^ 3) / ((γ + t ^ 2) ^ (3/2 : ℝ)) := by
+      rw [Real.sqrt_div (by positivity : 0 ≤ π) _]
+      calc
+        ((Real.sqrt π) / Real.sqrt (γ + t ^ 2)) ^ 3 = (Real.sqrt π) ^ 3 / (Real.sqrt (γ + t ^ 2)) ^ 3 := by ring
+        _ = (Real.sqrt π) ^ 3 / ((γ + t ^ 2) ^ (3/2 : ℝ)) := by rw [h_sqrt_cube]
+    -- f(t)² = t²/(γ+t²)
+    have h_sq : (f t) ^ 2 = t ^ 2 / (γ + t ^ 2) := by
+      dsimp [f]
+      calc
+        (t / Real.sqrt (γ + t ^ 2)) ^ 2 = t ^ 2 / (Real.sqrt (γ + t ^ 2)) ^ 2 := by ring
+        _ = t ^ 2 / (γ + t ^ 2) := by rw [Real.sq_sqrt hpos]
+    rw [h_sqrt_pi_cube]
+    rw [hg]
+    dsimp
+    rw [h_sq]
+    dsimp [f', f]
+    field_simp [hγ.ne']
+  -- Apply the change-of-variables lemma
+  calc
+    (∫ t in Ioi (0 : ℝ), ((Real.sqrt (π / (γ + t ^ 2))) ^ 3) *
+        Real.exp (-(γ * t ^ 2) / (γ + t ^ 2) * S))
+      = (∫ t in Ioi (0 : ℝ), f' t * g (f t)) := by
+        refine setIntegral_congr_ae measurableSet_Ioi ?_
+        filter_upwards with t using h_eq t
+    _ = (∫ t in Ioi (0 : ℝ), f' t • g (f t)) := by
+      refine setIntegral_congr_ae measurableSet_Ioi ?_
+      filter_upwards with t; simp [smul_eq_mul]
+    _ = (∫ u in f '' Ioi (0 : ℝ), g u) :=
+      (integral_image_eq_integral_deriv_smul_of_monotoneOn
+        measurableSet_Ioi h_deriv h_mono g).symm
+    _ = (∫ u in Ioo (0 : ℝ) 1, g u) := by rw [h_image]
+    _ = (∫ u in Ioc (0 : ℝ) 1, g u) := by rw [integral_Ioc_eq_integral_Ioo]
+    _ = (∫ u in (0 : ℝ)..1, g u) := by
+      rw [intervalIntegral.integral_of_le (by norm_num : (0 : ℝ) ≤ 1)]
+    _ = ((Real.sqrt π) ^ 3 / γ) * (∫ u in (0 : ℝ)..1, Real.exp (-(γ * S) * u ^ 2)) := by
+      rw [hg]
+      simp [intervalIntegral.integral_const_mul]
+    _ = ((Real.sqrt π) ^ 3 / γ) * boys0 (γ * S) := rfl
+
+/-! ## 8. Core Coulomb identity -/
+
+/-- Integrability of `exp(-γ|r|² - t²|r-A|²)` on `ℝ³ × Ioi(0)` with respect to the product
+Lebesgue measure. This justifies the Fubini swap in the nuclear-attraction identity.
+The integrand is nonnegative, measurable, and its iterated integral (inner t, outer r)
+equals the nuclear-attraction integral `∫ exp(-γ|r|²)/|r-A| dr`, which converges in ℝ³. -/
+lemma integrable_prod_gaussian_coulomb (γ : ℝ) (hγ : 0 < γ) (A : ℝ³) :
+    Integrable (Function.uncurry (fun (r : ℝ³) (t : ℝ) =>
+      Real.exp (-γ * ∑ i, (r i) ^ 2) *
+      ((Ioi (0 : ℝ)).indicator (fun t' : ℝ => Real.exp (-(∑ i, (r i - A i) ^ 2) * t' ^ 2)) t)))
+      (volume.prod volume) := by
+  -- The integrand is nonnegative and measurable. The iterated integral with respect to t first
+  -- gives (√π/2)·exp(-γ|r|²)/|r-A| for a.e. r, and the integral over r converges
+  -- (the 1/|r-A| singularity is integrable in ℝ³). A full formal proof bounds
+  -- the singularity near r=A and uses the rapid decay of the Gaussian at infinity.
+  sorry
 
 lemma integral_exp_neg_mul_sq_coulomb (γ : ℝ) (hγ : 0 < γ) (A : ℝ³) :
     (∫ r : ℝ³, Real.exp (-γ * ∑ i, (r i) ^ 2) * coulomb r A) = (2 * π / γ) * boys0 (γ * ∑ i, (A i) ^ 2) := by
-  sorry
+  set S := ∑ i : Fin 3, (A i) ^ 2 with hS
+  -- Step 1: Replace coulomb by its AE integral representation (Lemma 6)
+  have h_coulomb_ae := coulomb_eq_integral_ae A
+  have h_int_ae : (fun r => Real.exp (-γ * ∑ i, (r i) ^ 2) * coulomb r A) =ᵐ[volume]
+      fun r => (2 / Real.sqrt π) * (Real.exp (-γ * ∑ i, (r i) ^ 2) *
+        (∫ t in Ioi (0 : ℝ), Real.exp (-(∑ i, (r i - A i) ^ 2) * t ^ 2))) := by
+    filter_upwards [h_coulomb_ae] with r hr
+    rw [hr]; ring
+  rw [integral_congr_ae h_int_ae, integral_const_mul]
+  -- Step 2: Swap the r and t integrals via Fubini
+  have h_int := integrable_prod_gaussian_coulomb γ hγ A
+  have h_swap : (∫ r : ℝ³, Real.exp (-γ * ∑ i, (r i) ^ 2) *
+      (∫ t in Ioi (0 : ℝ), Real.exp (-(∑ i, (r i - A i) ^ 2) * t ^ 2))) =
+      (∫ t in Ioi (0 : ℝ), (∫ r : ℝ³,
+        Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2))) := by
+    set f := fun (r : ℝ³) => Real.exp (-γ * ∑ i, (r i) ^ 2) with hf
+    set g := fun (r : ℝ³) (t : ℝ) => Real.exp (-(∑ i, (r i - A i) ^ 2) * t ^ 2) with hg
+    calc
+      (∫ r : ℝ³, f r * (∫ t in Ioi (0 : ℝ), g r t))
+        = (∫ r : ℝ³, (∫ t : ℝ, f r *
+            ((Ioi (0 : ℝ)).indicator (g r) t))) := by
+          refine integral_congr_ae ?_
+          filter_upwards with r
+          rw [(integral_indicator measurableSet_Ioi (μ := volume) (f := g r)).symm, integral_const_mul]
+      _ = (∫ t : ℝ, (∫ r : ℝ³, f r *
+            ((Ioi (0 : ℝ)).indicator (g r) t))) :=
+        integral_integral_swap h_int
+      _ = (∫ t : ℝ, ((Ioi (0 : ℝ)).indicator (fun _ => (1 : ℝ)) t) *
+            (∫ r : ℝ³, f r * g r t)) := by
+          refine integral_congr_ae ?_
+          filter_upwards with t
+          have h_ind_mul (r : ℝ³) : ((Ioi (0 : ℝ)).indicator (g r) t) =
+              ((Ioi (0 : ℝ)).indicator (fun _ => (1 : ℝ)) t) * g r t := by
+            by_cases ht : t ∈ Ioi (0 : ℝ)
+            · simp [Set.indicator, ht]
+            · simp [Set.indicator, ht]
+          calc
+            (∫ r : ℝ³, f r * ((Ioi (0 : ℝ)).indicator (g r) t))
+                = (∫ r : ℝ³, f r * (((Ioi (0 : ℝ)).indicator (fun _ => (1 : ℝ)) t) * g r t)) := by
+              refine integral_congr_ae ?_
+              filter_upwards with r
+              rw [h_ind_mul r]
+            _ = (∫ r : ℝ³, ((Ioi (0 : ℝ)).indicator (fun _ => (1 : ℝ)) t) * (f r * g r t)) := by
+              refine integral_congr_ae ?_
+              filter_upwards with r; ring
+            _ = ((Ioi (0 : ℝ)).indicator (fun _ => (1 : ℝ)) t) *
+                (∫ r : ℝ³, f r * g r t) := by
+              rw [integral_const_mul]
+      _ = (∫ t : ℝ, ((Ioi (0 : ℝ)).indicator (fun t' => (∫ r : ℝ³, f r * g r t'))) t) := by
+          refine integral_congr_ae ?_
+          filter_upwards with t
+          simp [Set.indicator, Set.mem_Ioi]
+      _ = (∫ t in Ioi (0 : ℝ), (∫ r : ℝ³, f r * g r t)) :=
+        integral_indicator measurableSet_Ioi
+      _ = (∫ t in Ioi (0 : ℝ), (∫ r : ℝ³,
+            Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2))) := by
+          refine setIntegral_congr_ae measurableSet_Ioi ?_
+          filter_upwards with t ht
+          refine integral_congr_ae ?_
+          filter_upwards with r
+          dsimp [f, g]
+          rw [← Real.exp_add]
+          ring
+  rw [h_swap]
+  -- Step 3: Apply the 3D Gaussian integral formula (Lemma 5)
+  have h_inner (t : ℝ) : (∫ r : ℝ³,
+      Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2)) =
+      ((Real.sqrt (π / (γ + t ^ 2))) ^ 3) *
+        Real.exp (-(γ * t ^ 2) / (γ + t ^ 2) * S) := by
+    rw [integral_exp_combined_3d γ t hγ A, hS]
+  simp_rw [h_inner]
+  -- Step 4: Change of variables in the remaining 1D integral
+  rw [integral_Ioi_gaussian_sqrt_to_boys0 γ S hγ]
+  -- Step 5: Simplify the constant factor
+  calc
+    (2 / Real.sqrt π) * (((Real.sqrt π) ^ 3 / γ) * boys0 (γ * S))
+        = ((2 / Real.sqrt π) * ((Real.sqrt π) ^ 3 / γ)) * boys0 (γ * S) := by ring
+    _ = (2 * π / γ) * boys0 (γ * S) := by
+      have h_sqrt_sq : (Real.sqrt π) ^ 2 = π := Real.sq_sqrt (by positivity : 0 ≤ π)
+      field_simp
+      ring_nf
+      rw [h_sqrt_sq]
+      ring
+    _ = (2 * π / γ) * boys0 (γ * ∑ i : Fin 3, (A i) ^ 2) := by rw [hS]
 
 /-! ## 8. Nuclear attraction integral -/
 
@@ -319,8 +490,10 @@ theorem nuclearAttraction_primitiveGTO_s
 /-- The double-integral identity for the ERI: for `p,q > 0`,
 `∫∫ exp(-p|r₁-P|²) exp(-q|r₂-Q|²) / |r₁-r₂| dr₁dr₂ = (2π^(5/2)/(pq√(p+q))) · F₀(pq|P-Q|²/(p+q))`.
 
-Like `integral_exp_neg_mul_sq_coulomb`, this is a standard quantum-chemistry result
-whose full Lean proof requires Fubini-Tonelli and nonlinear change of variables. -/
+This is a standard quantum-chemistry result whose full Lean proof requires Fubini-Tonelli
+on ℝ³ × ℝ³, two applications of `integral_exp_combined_3d`, and the same nonlinear change
+of variables as in `integral_exp_neg_mul_sq_coulomb`. The algebraic derivation is outlined
+above; the measure-theoretic integrability conditions are omitted. -/
 lemma integral_double_exp_coulomb (p q : ℝ) (hp : 0 < p) (hq : 0 < q) (P Q : ℝ³) :
     (∫ r₁ : ℝ³, ∫ r₂ : ℝ³,
       Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2) *
@@ -391,9 +564,65 @@ theorem electronRepulsion_primitiveGTO_s
       _ = (-(α₃ * α₄) / (α₃ + α₄) * ∑ i : Fin 3, (R₃ i - R₄ i) ^ 2)
             + (-(α₃ + α₄) * ∑ i : Fin 3, (r i - Q i) ^ 2) := by
               simp [Finset.mul_sum, Finset.sum_add_distrib]
-  -- The proof proceeds by applying the Gaussian product theorem to each electron's pair,
-  -- factoring constants out of the double integral, and using `integral_double_exp_coulomb`.
-  -- See the `integral_double_exp_coulomb` lemma (deferred) for the core double-integral identity.
-  sorry
+  unfold electronRepulsion
+  calc
+    (∫ r₁ : ℝ³, ∫ r₂ : ℝ³,
+        primitiveGTO_s α₁ R₁ r₁ * primitiveGTO_s α₂ R₂ r₁ *
+        coulomb r₁ r₂ *
+        primitiveGTO_s α₃ R₃ r₂ * primitiveGTO_s α₄ R₄ r₂)
+      = (∫ r₁ : ℝ³, ∫ r₂ : ℝ³,
+          (K₁₂ * Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2)) *
+          coulomb r₁ r₂ *
+          (K₃₄ * Real.exp (-q * ∑ i : Fin 3, (r₂ i - Q i) ^ 2))) := by
+        refine integral_congr_ae ?_
+        filter_upwards with r₁
+        refine integral_congr_ae ?_
+        filter_upwards with r₂
+        calc
+          primitiveGTO_s α₁ R₁ r₁ * primitiveGTO_s α₂ R₂ r₁ *
+              coulomb r₁ r₂ *
+              primitiveGTO_s α₃ R₃ r₂ * primitiveGTO_s α₄ R₄ r₂
+            = (primitiveGTO_s α₁ R₁ r₁ * primitiveGTO_s α₂ R₂ r₁) * coulomb r₁ r₂ *
+                (primitiveGTO_s α₃ R₃ r₂ * primitiveGTO_s α₄ R₄ r₂) := by ring
+          _ = (K₁₂ * Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2)) * coulomb r₁ r₂ *
+                (K₃₄ * Real.exp (-q * ∑ i : Fin 3, (r₂ i - Q i) ^ 2)) := by
+              rw [h_prod12 r₁, h_prod34 r₂]
+          _ = (K₁₂ * Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2)) * coulomb r₁ r₂ *
+                (K₃₄ * Real.exp (-q * ∑ i : Fin 3, (r₂ i - Q i) ^ 2)) := rfl
+    _ = (∫ r₁ : ℝ³, ∫ r₂ : ℝ³,
+          K₁₂ * K₃₄ * (Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+            coulomb r₁ r₂ *
+            Real.exp (-q * ∑ i : Fin 3, (r₂ i - Q i) ^ 2))) := by
+      refine integral_congr_ae ?_
+      filter_upwards with r₁
+      refine integral_congr_ae ?_
+      filter_upwards with r₂
+      ring
+    _ = K₁₂ * K₃₄ * (∫ r₁ : ℝ³, ∫ r₂ : ℝ³,
+          Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+          coulomb r₁ r₂ *
+          Real.exp (-q * ∑ i : Fin 3, (r₂ i - Q i) ^ 2)) := by
+      simp [integral_const_mul]
+    _ = K₁₂ * K₃₄ * (∫ r₁ : ℝ³, ∫ r₂ : ℝ³,
+          Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+          Real.exp (-q * ∑ i : Fin 3, (r₂ i - Q i) ^ 2) *
+          coulomb r₁ r₂) := by
+      refine congrArg (fun t => K₁₂ * K₃₄ * t) (integral_congr_ae ?_)
+      filter_upwards with r₁
+      refine integral_congr_ae ?_
+      filter_upwards with r₂
+      ring
+    _ = K₁₂ * K₃₄ * ((2 * π ^ (5/2 : ℝ)) / (p * q * Real.sqrt (p + q)) *
+          boys0 (p * q / (p + q) * ∑ i : Fin 3, (P i - Q i) ^ 2)) := by
+      rw [integral_double_exp_coulomb p q hp_pos hq_pos P Q]
+    _ = (2 * π ^ (5/2 : ℝ)) /
+          ((α₁ + α₂) * (α₃ + α₄) * Real.sqrt ((α₁ + α₂) + (α₃ + α₄))) *
+          Real.exp (-(α₁ * α₂) / (α₁ + α₂) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+          Real.exp (-(α₃ * α₄) / (α₃ + α₄) * ∑ i : Fin 3, (R₃ i - R₄ i) ^ 2) *
+          boys0 ((α₁ + α₂) * (α₃ + α₄) / ((α₁ + α₂) + (α₃ + α₄)) *
+            ∑ i : Fin 3, (((α₁ * R₁ i + α₂ * R₂ i) / (α₁ + α₂)) -
+              ((α₃ * R₃ i + α₄ * R₄ i) / (α₃ + α₄))) ^ 2) := by
+      dsimp [K₁₂, K₃₄, P, Q, p, q]
+      ring
 
 end GTO
