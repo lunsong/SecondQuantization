@@ -3,6 +3,7 @@ import Mathlib.Analysis.SpecialFunctions.Gaussian.GaussianIntegral
 import Mathlib.MeasureTheory.Integral.IntegralEqImproper
 import Mathlib.MeasureTheory.Function.JacobianOneDim
 import Mathlib.Analysis.SpecialFunctions.ImproperIntegrals
+import Mathlib.MeasureTheory.Integral.Prod
 
 namespace GTO
 
@@ -615,15 +616,194 @@ theorem nuclearAttraction_primitiveGTO_s
         _ = (2 * π / (α + β)) * Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
               boys0 ((α + β) * ∑ i : Fin 3, ((α * R₁ i + β * R₂ i) / (α + β) - C i) ^ 2) := by rw [h_sum_eq]
 
+/-! ## 8b. Second change of variables for the ERI identity -/
+
+/-- Variant of `hasDerivAt_u_div_sqrt_add_sq` with a weighted quadratic `q + p·x²`
+(`q > 0`, `p ≥ 0`): `d/dx[x/√(q+p·x²)] = q/(q+p·x²)^(3/2)`. -/
+private lemma hasDerivAt_u_div_sqrt_add_p_sq (q p u : ℝ) (hq : 0 < q) (hp : 0 ≤ p) :
+    HasDerivAt (fun x : ℝ => x / Real.sqrt (q + p * x ^ 2))
+      (q / (q + p * u ^ 2) ^ (3/2 : ℝ)) u := by
+  have h_add_pos : 0 < q + p * u ^ 2 := by nlinarith
+  have h_sqrt_ne : Real.sqrt (q + p * u ^ 2) ≠ 0 := (Real.sqrt_pos.mpr h_add_pos).ne'
+  have h_ne : q + p * u ^ 2 ≠ 0 := h_add_pos.ne'
+  have h_sq : HasDerivAt (fun x : ℝ => x ^ 2) (2 * u) u := by
+    simpa [sq, two_mul] using (hasDerivAt_id u).mul (hasDerivAt_id u)
+  have h_pu2 : HasDerivAt (fun x : ℝ => p * x ^ 2) (p * (2 * u)) u := h_sq.const_mul p
+  have h_add_deriv : HasDerivAt (fun x : ℝ => q + p * x ^ 2) (p * (2 * u)) u := h_pu2.const_add q
+  have h_denom_deriv : HasDerivAt (fun x : ℝ => Real.sqrt (q + p * x ^ 2))
+      (p * u / Real.sqrt (q + p * u ^ 2)) u := by
+    have h_sqrt_deriv : HasDerivAt Real.sqrt ((2 * Real.sqrt (q + p * u ^ 2))⁻¹) (q + p * u ^ 2) := by
+      simpa [one_div] using hasDerivAt_sqrt (by nlinarith : q + p * u ^ 2 ≠ 0)
+    have h_comp := HasDerivAt.comp u h_sqrt_deriv h_add_deriv
+    simpa [div_eq_mul_inv, mul_comm, mul_left_comm, mul_assoc] using h_comp
+  have h_div := HasDerivAt.div (hasDerivAt_id u) h_denom_deriv h_sqrt_ne
+  refine h_div.congr_deriv ?_
+  have h_sq_sqrt : Real.sqrt (q + p * u ^ 2) ^ 2 = q + p * u ^ 2 := Real.sq_sqrt (by nlinarith)
+  have h_pow_eq : (q + p * u ^ 2) ^ (3/2 : ℝ) = Real.sqrt (q + p * u ^ 2) ^ 3 := by
+    calc (q + p * u ^ 2) ^ (3/2 : ℝ)
+        = (q + p * u ^ 2) ^ ((1/2 : ℝ) * (3 : ℝ)) := by norm_num
+      _ = ((q + p * u ^ 2) ^ (1/2 : ℝ)) ^ (3 : ℝ) := by
+        rw [rpow_mul (by nlinarith : 0 ≤ q + p * u ^ 2) (1/2 : ℝ) (3 : ℝ)]
+      _ = (Real.sqrt (q + p * u ^ 2)) ^ (3 : ℝ) := by rw [Real.sqrt_eq_rpow]
+      _ = (Real.sqrt (q + p * u ^ 2)) ^ 3 := by norm_num
+  simp only [Function.id_def]
+  rw [h_pow_eq]
+  field_simp [h_sqrt_ne, h_ne]
+  rw [h_sq_sqrt]
+  ring
+
+/-- Change of variables `v = u·√((p+q)/(q+p·u²))` on `[0,1]`, used by the ERI identity
+`integral_double_exp_coulomb`. Maps `[0,1]` onto `[0,1]` with `φ 0 = 0`, `φ 1 = 1`;
+the Jacobian `φ'` cancels the prefactor exactly. -/
+private lemma integral_Icc_gaussian_to_boys0 (p q S : ℝ) (hp : 0 < p) (hq : 0 < q) :
+    (∫ u in (0:ℝ)..1, ((Real.sqrt (π / (q + p * u ^ 2))) ^ 3) *
+      Real.exp (-(p * q * u ^ 2) / (q + p * u ^ 2) * S)) =
+    ((Real.sqrt π) ^ 3 / (q * Real.sqrt (p + q))) * boys0 (p * q / (p + q) * S) := by
+  set φ : ℝ → ℝ := fun u => Real.sqrt (p + q) * (u / Real.sqrt (q + p * u ^ 2)) with hφ
+  set φ' : ℝ → ℝ := fun u => Real.sqrt (p + q) * q / (Real.sqrt (q + p * u ^ 2)) ^ 3 with hφ'
+  set ρ : ℝ := p * q / (p + q) with hρ
+  set C : ℝ := (Real.sqrt π) ^ 3 / (q * Real.sqrt (p + q)) with hC
+  set g : ℝ → ℝ := fun v => C * Real.exp (-(ρ * S) * v ^ 2) with hg
+  have hpq_pos : 0 < p + q := by linarith
+  have h_pow3 (u : ℝ) : (q + p * u ^ 2) ^ (3/2 : ℝ) = (Real.sqrt (q + p * u ^ 2)) ^ 3 := by
+    have hpos : 0 ≤ q + p * u ^ 2 := by nlinarith
+    calc (q + p * u ^ 2) ^ (3/2 : ℝ)
+        = (q + p * u ^ 2) ^ ((1/2 : ℝ) * (3 : ℝ)) := by norm_num
+      _ = ((q + p * u ^ 2) ^ (1/2 : ℝ)) ^ (3 : ℝ) := by
+        rw [rpow_mul hpos (1/2 : ℝ) (3 : ℝ)]
+      _ = (Real.sqrt (q + p * u ^ 2)) ^ (3 : ℝ) := by rw [Real.sqrt_eq_rpow]
+      _ = (Real.sqrt (q + p * u ^ 2)) ^ 3 := by norm_num
+  have hφ_deriv (u : ℝ) : HasDerivAt φ (φ' u) u := by
+    dsimp [φ]
+    have hu := hasDerivAt_u_div_sqrt_add_p_sq q p u hq hp.le
+    convert HasDerivAt.const_mul (Real.sqrt (p + q)) hu using 1
+    dsimp [φ']; rw [h_pow3 u]; ring
+  have hφ'_cont : ContinuousOn φ' (Set.uIcc (0:ℝ) 1) := by
+    rw [Set.uIcc_of_le (by norm_num : (0:ℝ) ≤ 1)]
+    dsimp [φ']
+    have h_denom : ContinuousOn (fun u : ℝ => (Real.sqrt (q + p * u ^ 2)) ^ 3) (Icc 0 1) := by fun_prop
+    have h_pos : ∀ u ∈ Icc (0:ℝ) 1, (Real.sqrt (q + p * u ^ 2)) ^ 3 ≠ 0 := by
+      intro u _; positivity
+    exact ContinuousOn.div continuousOn_const h_denom h_pos
+  have hφ_0 : φ 0 = 0 := by dsimp [φ]; ring
+  have hφ_1 : φ 1 = 1 := by
+    dsimp [φ]
+    have h1 : q + p * 1 ^ 2 = p + q := by rw [pow_two]; ring
+    rw [h1]; field_simp [(Real.sqrt_pos.mpr hpq_pos).ne']
+  have hg_cont : Continuous g := by dsimp [g]; fun_prop
+  have h_eq (u : ℝ) :
+      ((Real.sqrt (π / (q + p * u ^ 2))) ^ 3) *
+        Real.exp (-(p * q * u ^ 2) / (q + p * u ^ 2) * S) =
+      g (φ u) * φ' u := by
+    have hpos : 0 ≤ q + p * u ^ 2 := by nlinarith
+    have h_φ_sq : (φ u) ^ 2 = (p + q) * u ^ 2 / (q + p * u ^ 2) := by
+      dsimp [φ]
+      have h1 : (Real.sqrt (p + q)) ^ 2 = p + q := Real.sq_sqrt (by linarith)
+      have h2 : (Real.sqrt (q + p * u ^ 2)) ^ 2 = q + p * u ^ 2 := Real.sq_sqrt hpos
+      rw [show (Real.sqrt (p + q) * (u / Real.sqrt (q + p * u ^ 2))) ^ 2 =
+          (Real.sqrt (p + q)) ^ 2 * (u / Real.sqrt (q + p * u ^ 2)) ^ 2 from by ring,
+        h1,
+        show (u / Real.sqrt (q + p * u ^ 2)) ^ 2 = u ^ 2 / (Real.sqrt (q + p * u ^ 2)) ^ 2
+          from by ring,
+        h2]
+      field_simp
+    have h_sqrt_pi_cube : (Real.sqrt (π / (q + p * u ^ 2))) ^ 3 =
+        ((Real.sqrt π) ^ 3) / ((Real.sqrt (q + p * u ^ 2)) ^ 3) := by
+      rw [Real.sqrt_div (by positivity : 0 ≤ π) _]; ring
+    have h_exp : -(p * q * u ^ 2) / (q + p * u ^ 2) * S = -(ρ * S) * (φ u) ^ 2 := by
+      rw [hρ, h_φ_sq]; field_simp
+    rw [h_sqrt_pi_cube, h_exp, hg, hC, hρ, hφ, hφ']
+    field_simp
+  calc (∫ u in (0:ℝ)..1, ((Real.sqrt (π / (q + p * u ^ 2))) ^ 3) *
+      Real.exp (-(p * q * u ^ 2) / (q + p * u ^ 2) * S))
+      = (∫ u in (0:ℝ)..1, g (φ u) * φ' u) := by
+        exact intervalIntegral.integral_congr (fun u _ => h_eq u)
+    _ = (∫ u in φ 0..φ 1, g u) := by
+      exact intervalIntegral.integral_comp_mul_deriv
+        (fun u _ => hφ_deriv u) hφ'_cont hg_cont
+    _ = (∫ u in (0:ℝ)..1, g u) := by rw [hφ_0, hφ_1]
+    _ = C * (∫ u in (0:ℝ)..1, Real.exp (-(ρ * S) * u ^ 2)) := by
+      rw [hg, intervalIntegral.integral_const_mul]
+    _ = C * boys0 (ρ * S) := rfl
+    _ = ((Real.sqrt π) ^ 3 / (q * Real.sqrt (p + q))) * boys0 (p * q / (p + q) * S) := by
+      rw [hC, hρ]
+
 /-! ## 9. Electron repulsion integral -/
 
+set_option maxHeartbeats 2000000 in
+/-- Integrability of the joint integrand `exp(-p|r₁-P|²)·1_{[0,1]}(u)·exp(-q·u²|r₁-Q|²)`
+on `ℝ³ × ℝ`, used to justify the Fubini swap in `integral_double_exp_coulomb`. It is bounded
+by the integrable `exp(-p|r₁-P|²)·1_{[0,1]}(u)` (since `exp(-q·u²|r₁-Q|²) ≤ 1`), which splits
+as a product of an integrable Gaussian in `r₁` and the indicator of the finite interval `[0,1]`. -/
+private lemma integrable_prod_erI (p q : ℝ) (hp : 0 < p) (hq : 0 < q) (P Q : ℝ³) :
+    Integrable (Function.uncurry (fun (r : ℝ³) (u : ℝ) =>
+      Real.exp (-p * ∑ i, (r i - P i) ^ 2) *
+      ((Ioc (0:ℝ) 1).indicator (fun u' : ℝ => Real.exp (-q * u' ^ 2 * ∑ i, (r i - Q i) ^ 2)) u)))
+      (volume.prod volume) := by
+  set f : ℝ³ → ℝ := fun r => Real.exp (-p * ∑ i, (r i - P i) ^ 2) with hf
+  set b : ℝ → ℝ := (Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) with hb
+  set G : ℝ³ × ℝ → ℝ := fun z => f z.1 * b z.2 with hG
+  have h_a0 : Integrable (fun r : ℝ³ => Real.exp (-p * ∑ i, (r i) ^ 2)) volume := by
+    have h_eq : (fun r : ℝ³ => Real.exp (-p * ∑ i, (r i) ^ 2)) =
+        (fun r : ℝ³ => ∏ i, Real.exp (-p * (r i) ^ 2)) := by
+      funext r; rw [Finset.mul_sum, ← Real.exp_sum]
+    rw [h_eq]
+    exact MeasureTheory.Integrable.fintype_prod (μ := fun _ => volume)
+      (fun _ => integrable_exp_neg_mul_sq hp)
+  have h_a : Integrable f volume := by dsimp [f]; exact h_a0.comp_sub_right P
+  have h_b : Integrable b volume := by
+    refine ⟨(measurable_const.indicator measurableSet_Ioc).aestronglyMeasurable, ?_⟩
+    show HasFiniteIntegral ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ))) volume
+    rw [hasFiniteIntegral_iff_ofReal
+        (Filter.Eventually.of_forall (fun _ => Set.indicator_apply_nonneg (fun _ => zero_le_one)))]
+    rw [show (fun x => ENNReal.ofReal ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) x)) =
+        (Ioc (0:ℝ) 1).indicator (fun _ => (1:ENNReal)) from
+        by funext x; simp [Set.indicator_apply]]
+    rw [MeasureTheory.lintegral_indicator measurableSet_Ioc, setLIntegral_const (1:ENNReal)]
+    rw [show (volume (Ioc (0:ℝ) 1) : ENNReal) = 1 from by rw [Real.measure_Ioc]; norm_num]
+    exact ENNReal.one_lt_top.ne'
+  have h_G_int : Integrable G (volume.prod volume) := h_a.mul_prod h_b
+  have hF_meas : Measurable (Function.uncurry (fun (r : ℝ³) (u : ℝ) =>
+      Real.exp (-p * ∑ i, (r i - P i) ^ 2) *
+      ((Ioc (0:ℝ) 1).indicator (fun u' : ℝ => Real.exp (-q * u' ^ 2 * ∑ i, (r i - Q i) ^ 2)) u))) := by
+    refine Measurable.mul (by fun_prop) ?_
+    simp only [Set.indicator_apply]
+    exact Measurable.ite (measurable_snd measurableSet_Ioc) (by fun_prop) measurable_const
+  have hF_nn (z : ℝ³ × ℝ) : 0 ≤ (Function.uncurry (fun (r : ℝ³) (u : ℝ) =>
+      Real.exp (-p * ∑ i, (r i - P i) ^ 2) *
+      ((Ioc (0:ℝ) 1).indicator (fun u' : ℝ => Real.exp (-q * u' ^ 2 * ∑ i, (r i - Q i) ^ 2)) u))) z := by
+    refine mul_nonneg (Real.exp_nonneg _) ?_
+    exact Set.indicator_apply_nonneg (fun _ => Real.exp_nonneg _)
+  have hG_nn (z : ℝ³ × ℝ) : 0 ≤ G z := by
+    dsimp [G]; exact mul_nonneg (Real.exp_nonneg _) (Set.indicator_apply_nonneg (fun _ => zero_le_one))
+  have hF_le_G (z : ℝ³ × ℝ) :
+      (Function.uncurry (fun (r : ℝ³) (u : ℝ) =>
+        Real.exp (-p * ∑ i, (r i - P i) ^ 2) *
+        ((Ioc (0:ℝ) 1).indicator (fun u' : ℝ => Real.exp (-q * u' ^ 2 * ∑ i, (r i - Q i) ^ 2)) u))) z ≤ G z := by
+    have hfr : 0 ≤ f z.1 := Real.exp_nonneg _
+    have hind_le : (Ioc (0:ℝ) 1).indicator
+        (fun u' => Real.exp (-q * u' ^ 2 * ∑ i, (z.1 i - Q i) ^ 2)) z.2 ≤ b z.2 := by
+      by_cases hu : z.2 ∈ Ioc (0:ℝ) 1
+      · rw [Set.indicator_of_mem hu, hb, Set.indicator_of_mem hu]
+        refine Real.exp_le_one_iff.mpr ?_
+        have hnn : 0 ≤ q * z.2 ^ 2 * ∑ i, (z.1 i - Q i) ^ 2 := by positivity
+        linarith
+      · rw [hb, Set.indicator_of_notMem hu, Set.indicator_of_notMem hu]
+        exact le_refl
+    exact mul_le_mul_of_nonneg_left hind_le hfr
+  refine h_G_int.mono' hF_meas.aestronglyMeasurable (Filter.Eventually.of_forall (fun z => ?_))
+  simp only [Real.norm_eq_abs, abs_of_nonneg (hF_nn z), abs_of_nonneg (hG_nn z)]
+  exact hF_le_G z
+
+set_option maxHeartbeats 2000000 in
 /-- The double-integral identity for the ERI: for `p,q > 0`,
 `∫∫ exp(-p|r₁-P|²) exp(-q|r₂-Q|²) / |r₁-r₂| dr₁dr₂ = (2π^(5/2)/(pq√(p+q))) · F₀(pq|P-Q|²/(p+q))`.
 
-This is a standard quantum-chemistry result whose full Lean proof requires Fubini-Tonelli
-on ℝ³ × ℝ³, two applications of `integral_exp_combined_3d`, and the same nonlinear change
-of variables as in `integral_exp_neg_mul_sq_coulomb`. The algebraic derivation is outlined
-above; the measure-theoretic integrability conditions are omitted. -/
+The proof reuses `integral_exp_neg_mul_sq_coulomb` (the nuclear-attraction identity) for the
+inner `r₂` integral, swaps `ℝ³` with the bounded interval `[0,1]` (integrability is trivial,
+dominated by the integrable `exp(-p|r₁-P|²)` since `boys0 ≤ 1` and the `u`-interval is finite),
+evaluates the resulting two-center `r₁` Gaussian via `integral_exp_combined_3d`, and finally
+applies the change of variables `integral_Icc_gaussian_to_boys0`. -/
 lemma integral_double_exp_coulomb (p q : ℝ) (hp : 0 < p) (hq : 0 < q) (P Q : ℝ³) :
     (∫ r₁ : ℝ³, ∫ r₂ : ℝ³,
       Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2) *
@@ -631,7 +811,158 @@ lemma integral_double_exp_coulomb (p q : ℝ) (hp : 0 < p) (hq : 0 < q) (P Q : �
       coulomb r₁ r₂) =
     (2 * π ^ (5/2 : ℝ)) / (p * q * Real.sqrt (p + q)) *
       boys0 (p * q / (p + q) * ∑ i : Fin 3, (P i - Q i) ^ 2) := by
-  sorry
+  set S := ∑ i : Fin 3, (P i - Q i) ^ 2 with hS
+  have h_coul_sym : ∀ (a b : ℝ³), coulomb a b = coulomb b a := by
+    intro a b; dsimp [coulomb]
+    have h : ∑ i : Fin 3, (a i - b i) ^ 2 = ∑ i : Fin 3, (b i - a i) ^ 2 := by
+      refine Finset.sum_congr rfl (fun i _ => ?_); ring
+    rw [h]
+  have h_inner (r₁ : ℝ³) : (∫ r₂ : ℝ³,
+      Real.exp (-q * ∑ i, (r₂ i - Q i) ^ 2) * coulomb r₁ r₂) =
+      (2 * π / q) * boys0 (q * ∑ i, (r₁ i - Q i) ^ 2) := by
+    have h1 : (∫ r₂, Real.exp (-q * ∑ i, (r₂ i - Q i) ^ 2) * coulomb r₁ r₂) =
+              (∫ r₂, Real.exp (-q * ∑ i, (r₂ i - Q i) ^ 2) * coulomb r₂ r₁) := by
+      refine integral_congr_ae ?_
+      filter_upwards with r₂
+      rw [h_coul_sym r₁ r₂]
+    have h2 : (∫ r₂, Real.exp (-q * ∑ i, (r₂ i - Q i) ^ 2) * coulomb r₂ r₁) =
+              (∫ r₂, Real.exp (-q * ∑ i, (r₂ i) ^ 2) * coulomb r₂ (r₁ - Q)) := by
+      have h_coul_sub : ∀ r₂ : ℝ³, coulomb (r₂ - Q) (r₁ - Q) = coulomb r₂ r₁ := by
+        intro r₂; dsimp [coulomb]
+        have h : ∑ i, ((r₂ - Q) i - (r₁ - Q) i) ^ 2 = ∑ i, (r₂ i - r₁ i) ^ 2 := by
+          refine Finset.sum_congr rfl (fun i _ => ?_); simp [Pi.sub_apply]
+        rw [h]
+      have h_trans := integral_sub_right_eq_self (μ := (volume : Measure ℝ³))
+        (fun r₂ : ℝ³ => Real.exp (-q * ∑ i, (r₂ i) ^ 2) * coulomb r₂ (r₁ - Q)) Q
+      calc (∫ r₂, Real.exp (-q * ∑ i, (r₂ i - Q i) ^ 2) * coulomb r₂ r₁)
+          = (∫ r₂, Real.exp (-q * ∑ i, ((r₂ - Q) i) ^ 2) * coulomb (r₂ - Q) (r₁ - Q)) := by
+            refine integral_congr_ae ?_
+            filter_upwards with r₂
+            rw [h_coul_sub r₂]
+            rw [show ∑ i, ((r₂ - Q) i) ^ 2 = ∑ i, (r₂ i - Q i) ^ 2 from
+                Finset.sum_congr rfl (fun i _ => by simp [Pi.sub_apply])]
+        _ = (∫ r₂, Real.exp (-q * ∑ i, (r₂ i) ^ 2) * coulomb r₂ (r₁ - Q)) := by
+          simpa [Pi.sub_apply] using h_trans
+    rw [h1, h2, integral_exp_neg_mul_sq_coulomb q hq (r₁ - Q)]
+    rw [show ∑ i, ((r₁ - Q) i) ^ 2 = ∑ i, (r₁ i - Q i) ^ 2 from
+        Finset.sum_congr rfl (fun i _ => by simp [Pi.sub_apply])]
+  have h_swap : (∫ r₁ : ℝ³, Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2) *
+        ∫ u in Ioc (0:ℝ) 1, Real.exp (-q * u ^ 2 * ∑ i, (r₁ i - Q i) ^ 2)) =
+      (∫ u in Ioc (0:ℝ) 1, ∫ r₁ : ℝ³,
+        Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2) * Real.exp (-q * u ^ 2 * ∑ i, (r₁ i - Q i) ^ 2)) := by
+    set f := fun (r₁ : ℝ³) => Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2) with hf
+    set g := fun (r₁ : ℝ³) (u : ℝ) => Real.exp (-q * u ^ 2 * ∑ i, (r₁ i - Q i) ^ 2) with hg
+    have h_int := integrable_prod_erI p q hp hq P Q
+    calc (∫ r₁, f r₁ * ∫ u in Ioc 0 1, g r₁ u)
+        = (∫ r₁, ∫ u : ℝ, f r₁ * (Ioc 0 1).indicator (g r₁) u) := by
+          refine integral_congr_ae ?_
+          filter_upwards with r₁
+          rw [(integral_indicator measurableSet_Ioc (μ := volume) (f := g r₁)).symm, integral_const_mul]
+      _ = (∫ u : ℝ, ∫ r₁ : ℝ³, f r₁ * (Ioc 0 1).indicator (g r₁) u) := integral_integral_swap h_int
+      _ = (∫ u : ℝ, (Ioc 0 1).indicator (fun _ => (1:ℝ)) u * ∫ r₁ : ℝ³, f r₁ * g r₁ u) := by
+          refine integral_congr_ae ?_
+          filter_upwards with u
+          have h_ind_mul (r₁ : ℝ³) : (Ioc 0 1).indicator (g r₁) u =
+              (Ioc 0 1).indicator (fun _ => (1:ℝ)) u * g r₁ u := by
+            by_cases hu : u ∈ Ioc 0 1
+            · simp [Set.indicator, hu]
+            · simp [Set.indicator, hu]
+          calc (∫ r₁, f r₁ * (Ioc 0 1).indicator (g r₁) u)
+              = (∫ r₁, f r₁ * ((Ioc 0 1).indicator (fun _ => (1:ℝ)) u * g r₁ u)) := by
+                refine integral_congr_ae ?_; filter_upwards with r₁; rw [h_ind_mul r₁]
+            _ = (∫ r₁, (Ioc 0 1).indicator (fun _ => (1:ℝ)) u * (f r₁ * g r₁ u)) := by
+                refine integral_congr_ae ?_; filter_upwards with r₁; ring
+            _ = (Ioc 0 1).indicator (fun _ => (1:ℝ)) u * ∫ r₁, f r₁ * g r₁ u := by
+                rw [integral_const_mul]
+      _ = (∫ u : ℝ, (Ioc 0 1).indicator (fun u' => ∫ r₁ : ℝ³, f r₁ * g r₁ u') u) := by
+          refine integral_congr_ae ?_
+          filter_upwards with u
+          by_cases hu : u ∈ Ioc 0 1
+          · simp [Set.indicator, hu]
+          · simp [Set.indicator, hu]
+      _ = (∫ u in Ioc 0 1, ∫ r₁ : ℝ³, f r₁ * g r₁ u) := integral_indicator measurableSet_Ioc
+  have h3 (u : ℝ) : (∫ r₁ : ℝ³,
+      Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2) * Real.exp (-q * u ^ 2 * ∑ i, (r₁ i - Q i) ^ 2)) =
+      (Real.sqrt (π / (p + q * u ^ 2))) ^ 3 *
+        Real.exp (-(p * q * u ^ 2) / (p + q * u ^ 2) * S) := by
+    have h_shift : (∫ r₁ : ℝ³,
+        Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2 - q * u ^ 2 * ∑ i, (r₁ i - Q i) ^ 2)) =
+        (∫ r₁ : ℝ³,
+        Real.exp (-p * ∑ i, (r₁ i) ^ 2 - q * u ^ 2 * ∑ i, (r₁ i - (Q i - P i)) ^ 2)) := by
+      have h_trans := integral_sub_right_eq_self (μ := (volume : Measure ℝ³))
+        (fun r₁ : ℝ³ =>
+          Real.exp (-p * ∑ i, (r₁ i) ^ 2 - q * u ^ 2 * ∑ i, (r₁ i - (Q i - P i)) ^ 2)) P
+      calc (∫ r₁, Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2 - q * u ^ 2 * ∑ i, (r₁ i - Q i) ^ 2))
+          = (∫ r₁, Real.exp (-p * ∑ i, ((r₁ - P) i) ^ 2 - q * u ^ 2 * ∑ i, ((r₁ - P) i - (Q i - P i)) ^ 2)) := by
+            refine integral_congr_ae ?_
+            filter_upwards with r₁
+            have h1 : ∑ i, ((r₁ - P) i) ^ 2 = ∑ i, (r₁ i - P i) ^ 2 := by
+              refine Finset.sum_congr rfl (fun i _ => ?_); simp [Pi.sub_apply]
+            have h2 : ∑ i, ((r₁ - P) i - (Q i - P i)) ^ 2 = ∑ i, (r₁ i - Q i) ^ 2 := by
+              refine Finset.sum_congr rfl (fun i _ => ?_); simp [Pi.sub_apply]; ring
+            rw [h1, h2]
+        _ = (∫ r₁, Real.exp (-p * ∑ i, (r₁ i) ^ 2 - q * u ^ 2 * ∑ i, (r₁ i - (Q i - P i)) ^ 2)) := by
+          simpa [Pi.sub_apply] using h_trans
+    rw [h_shift]
+    have htq : (u * Real.sqrt q) ^ 2 = q * u ^ 2 := by rw [sq_mul, Real.sq_sqrt hq.le]; ring
+    have hQP : ∑ i : Fin 3, ((Q - P) i) ^ 2 = S := by
+      refine Finset.sum_congr rfl (fun i _ => ?_); simp [Pi.sub_apply]; rw [hS]; ring
+    rw [integral_exp_combined_3d p (u * Real.sqrt q) hp (Q - P), htq, hQP]
+  calc (∫ r₁ : ℝ³, ∫ r₂ : ℝ³,
+        Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2) *
+        Real.exp (-q * ∑ i, (r₂ i - Q i) ^ 2) *
+        coulomb r₁ r₂)
+    = (∫ r₁ : ℝ³, Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2) *
+        ((2 * π / q) * boys0 (q * ∑ i, (r₁ i - Q i) ^ 2))) := by
+      refine integral_congr_ae ?_
+      filter_upwards with r₁
+      rw [mul_assoc, integral_const_mul, h_inner r₁]
+  _ = (2 * π / q) * (∫ r₁ : ℝ³, Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2) *
+        boys0 (q * ∑ i, (r₁ i - Q i) ^ 2)) := by
+      refine integral_congr_ae ?_
+      filter_upwards with r₁
+      rw [integral_const_mul]
+      ring
+  _ = (2 * π / q) * (∫ r₁ : ℝ³, Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2) *
+        ∫ u in Ioc (0:ℝ) 1, Real.exp (-q * u ^ 2 * ∑ i, (r₁ i - Q i) ^ 2)) := by
+      congr 1
+      refine integral_congr_ae ?_
+      filter_upwards with r₁
+      simp only [boys0]
+      rw [← intervalIntegral.integral_of_le (by norm_num : (0:ℝ) ≤ 1)]
+  _ = (2 * π / q) * (∫ u in Ioc (0:ℝ) 1, ∫ r₁ : ℝ³,
+        Real.exp (-p * ∑ i, (r₁ i - P i) ^ 2) * Real.exp (-q * u ^ 2 * ∑ i, (r₁ i - Q i) ^ 2)) := by
+      rw [h_swap]
+  _ = (2 * π / q) * (∫ u in Ioc (0:ℝ) 1,
+        (Real.sqrt (π / (p + q * u ^ 2))) ^ 3 *
+        Real.exp (-(p * q * u ^ 2) / (p + q * u ^ 2) * S)) := by
+      congr 1
+      refine setIntegral_congr_ae measurableSet_Ioc ?_
+      filter_upwards with u hu
+      rw [h3 u]
+  _ = (2 * π / q) * (∫ u in (0:ℝ)..1,
+        (Real.sqrt (π / (p + q * u ^ 2))) ^ 3 *
+        Real.exp (-(p * q * u ^ 2) / (p + q * u ^ 2) * S)) := by
+      congr 1
+      rw [intervalIntegral.integral_of_le (by norm_num : (0:ℝ) ≤ 1)]
+  _ = (2 * π / q) * (((Real.sqrt π) ^ 3 / (p * Real.sqrt (p + q))) *
+        boys0 (p * q / (p + q) * S)) := by
+      congr 1
+      rw [integral_Icc_gaussian_to_boys0 q p S hq hp]
+  _ = (2 * π ^ (5/2 : ℝ)) / (p * q * Real.sqrt (p + q)) *
+        boys0 (p * q / (p + q) * S) := by
+      have h_pi32 : (Real.sqrt π) ^ 3 = π ^ (3/2 : ℝ) := by
+        rw [Real.sqrt_eq_rpow, ← Real.rpow_natCast (π ^ (1/2 : ℝ)) 3,
+            ← Real.rpow_mul Real.pi_nonneg (1/2 : ℝ) 3]
+        norm_num
+      have h_pi52 : π * π ^ (3/2 : ℝ) = π ^ (5/2 : ℝ) := by
+        rw [← Real.rpow_one π, Real.rpow_add Real.pi_nonneg]; norm_num
+      rw [h_pi32]
+      field_simp
+      rw [h_pi52]
+      ring
+  _ = (2 * π ^ (5/2 : ℝ)) / (p * q * Real.sqrt (p + q)) *
+        boys0 (p * q / (p + q) * ∑ i : Fin 3, (P i - Q i) ^ 2) := by rw [hS]
 
 theorem electronRepulsion_primitiveGTO_s
     (α₁ α₂ α₃ α₄ : ℝ) (hα₁ : 0 < α₁) (hα₂ : 0 < α₂) (hα₃ : 0 < α₃) (hα₄ : 0 < α₄)
