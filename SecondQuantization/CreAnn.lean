@@ -1,12 +1,35 @@
 import Mathlib.Tactic
+import Mathlib.LinearAlgebra.Matrix.PosDef
 
-namespace SecondQuantization
+namespace Fermion
 
-variable (α R : Type) [CommRing R]
+variable (α R 𝕜 : Type) [CommRing R] [PartialOrder 𝕜] [CommRing 𝕜] [StarRing 𝕜] 
 
 abbrev Operator := (Finset α → R) →ₗ[R] (Finset α → R)
 
-namespace Fermion
+class HasOverlap where
+  overlap : Matrix α α 𝕜
+  overlap_PosSemidef : overlap.PosSemidef
+
+namespace InnerProductSpace
+
+variable [HasOverlap α 𝕜] [LinearOrder α] 
+
+def innerMatrix : Matrix (Finset α) (Finset α) 𝕜 :=
+  fun φ ψ =>
+    if  h : φ.card = ψ.card then
+      Matrix.det <| fun (i j : Fin φ.card) =>
+        HasOverlap.overlap (φ.sort.get (i.cast (by simp))) (ψ.sort.get (i.cast (by simp[h])))
+    else
+      0
+
+theorem innerMatrix_PosSemiDef : (innerMatrix α 𝕜).PosSemidef := by
+  sorry
+
+end InnerProductSpace
+
+--instance instInnerProduceSpaceOfHasOverlap [Fintype α] [HasOverlap α R] :
+--    Inner
 
 variable {α} [LinearOrder α]
 
@@ -92,7 +115,4 @@ theorem ann_ann {x y : α} : ann R x * ann R y + ann R y * ann R x = 0 := by
   any_goals simp
   any_goals grind
 
-
 end Fermion
-
-end SecondQuantization
