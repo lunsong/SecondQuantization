@@ -6,31 +6,44 @@ import Mathlib.MeasureTheory.Constructions.Pi
 
 # Gaussian Type Orbitals
 
-This file formalizes the Cartesian Gaussian Type Orbitals (GTO), which are the standard atomic
-basis functions used in quantum chemistry. A primitive Cartesian GTO centered at `R ∈ ℝ³` with
-exponent `α > 0` and angular momentum `(lx, ly, lz) : Fin 3 → ℕ` is the function
+This file formalizes the Cartesian Gaussian Type Orbitals (GTO), the standard atomic basis
+functions used in quantum chemistry, and the integral operators built from them.
 
-  φ(r) = (x - Rx)^lx · (y - Ry)^ly · (z - Rz)^lz · exp (-α · ‖r - R‖²)
+A primitive Cartesian GTO centered at `R ∈ ℝ³` with exponent `α > 0` and angular momentum
+`l : Fin 3 → ℕ` is the function
+
+  φ(r) = ∏ᵢ (rᵢ - Rᵢ)^(lᵢ) · exp (-α · ‖r - R‖²).
 
 A contracted GTO is a finite linear combination of primitive GTOs that share the same center and
 angular momentum but have different exponents and coefficients.
+
+Throughout this directory, physical space is the notation `ℝ³ := Fin 3 → ℝ`. The Euclidean norm
+appears only through the squared form `∑ i, (r i - R i) ^ 2`.
 
 ## Definitions
 
 * `primitiveGTO` — a primitive Cartesian Gaussian centered at `R` with exponent `α` and angular
   momentum `l`.
+* `primitiveGTO_s` — the s-type special case (`l = 0`), i.e. a bare Gaussian.
 * `contractedGTO` — a contracted Gaussian: finite sum of primitives with shared center / angular
   momentum.
+* `coulomb` — the Coulomb kernel `1 / ‖x - y‖`.
 * `overlap` — the overlap integral `∫ φ(r) ψ(r) dr` between two GTOs.
 * `nuclearAttraction` — the one-electron nuclear attraction integral `∫ φ(r) (1/‖r - C‖) ψ(r) dr`.
 * `electronRepulsion` — the two-electron repulsion integral
   `∫∫ φ₁(r₁) φ₂(r₁) (1/‖r₁ - r₂‖) φ₃(r₂) φ₄(r₂) dr₁ dr₂`.
-* `kinetic` — the kinetic energy integral `-½ ∫ φ(r) (∇² ψ)(r) dr`.
+* `kinetic` — the kinetic energy integral `½ ∫ ∇φ · ∇ψ`.
+* `coreHamiltonian` — the one-electron core Hamiltonian `T + Σₖ (-Zₖ) · ⟨φ | 1/‖r-Cₖ‖ | ψ⟩`.
+
+The closed forms of these integrals for primitive (and contracted) s-type GTOs are derived in the
+sibling files `Overlap.lean`, `Kinetic.lean`, and `Coulomb.lean`.
 
 -/
 
 namespace GTO
 
+/-- Shorthand for physical 3-space, the domain of every GTO and the ambient space of integration
+in this directory. -/
 notation (name := R3) "ℝ³" => Fin 3 → ℝ
 
 open Real MeasureTheory
@@ -57,6 +70,9 @@ noncomputable def contractedGTO {ι : Type} [Fintype ι]
 noncomputable def overlap (φ ψ : ℝ³ → ℝ) : ℝ :=
   ∫ r : ℝ³, φ r * ψ r
 
+/-- The Coulomb kernel `1 / ‖x - y‖`, i.e. the electrostatic potential at `x` of a unit charge
+at `y`, with `‖·‖` the Euclidean norm on `ℝ³`. It is singular on the diagonal `x = y`; this set
+is negligible and is handled almost-everywhere in the integral identities of `Coulomb.lean`. -/
 noncomputable def coulomb (x y : ℝ³) : ℝ := 1 / √(∑ i, (x i - y i) ^ 2)
 
 /-- The nuclear attraction integral for a nucleus at `C`:
@@ -84,7 +100,12 @@ noncomputable def coreHamiltonian {ι : Type} [Fintype ι]
     (Z : ι → ℝ) (C : ι → ℝ³) (φ ψ : ℝ³ → ℝ) : ℝ :=
   kinetic φ ψ + ∑ k : ι, (- Z k) * nuclearAttraction (C k) φ ψ
 
-/-! ## Symmetry lemmas -/
+/-! ## Symmetry lemmas
+
+These mirror the Hermiticity of the underlying quantum-mechanical operators: the overlap and
+nuclear-attraction integrals are symmetric in their two basis-function arguments, and the
+electron-repulsion integral is invariant under swapping either bra pair (`φ₁ ↔ φ₂`) or ket pair
+(`φ₃ ↔ φ₄`). Each is a pointwise algebraic identity pulled through the integral. -/
 
 /-- The overlap integral is symmetric in its two arguments. -/
 theorem overlap_comm (φ ψ : ℝ³ → ℝ) : overlap φ ψ = overlap ψ φ := by

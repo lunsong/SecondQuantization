@@ -1,15 +1,34 @@
 import SecondQuantization.GTO.Overlap
 
+/-!
+# Gaussian moments, general-angular-momentum overlap, and the kinetic-energy integral
+
+This file proves three families of results used throughout the GTO directory:
+
+1. **Gaussian moment integrals.** `integral_gaussian_moment_1d` gives the closed form
+   `∫ x^n exp(-γ x²) dx = (n-1)‼ · √(π/γ) / (2γ)^(n/2)` for even `n` (and `0` for odd `n`),
+   proved by strong induction on `n` via the integration-by-parts recurrence
+   `I_{m+2} = (m+1)/(2γ) · I_m`. This is the engine behind every higher-angular-momentum
+   integral.
+
+2. **General angular-momentum overlap.** `overlap_primitiveGTO_same_center` factors the overlap
+   of two same-center primitives into a product of 1D moments; `overlap_primitiveGTO_diff_center`
+   translates to the Gaussian product center `P` and leaves 1D moments; `overlap_primitiveGTO`
+   expands these fully via the binomial theorem into a finite sum of `gaussianMoment` values.
+
+3. **s-type kinetic-energy integral.** Using the Fréchet derivative of an s-type GTO
+   (`fderiv_primitiveGTO_s`), `kinetic_primitiveGTO_s_same_center` and
+   `kinetic_primitiveGTO_s_diff_center` give the closed forms of `½ ∫ ∇φ · ∇ψ`.
+
+The nuclear-attraction and electron-repulsion integrals (which reduce to the Boys function) live
+in `Coulomb.lean`.
+-/
+
 namespace GTO
 
 open Real MeasureTheory
 
-/-! ## Higher angular momentum, kinetic, nuclear attraction, ERI
-
-The closed forms below are the standard quantum-chemistry results. Each requires either a
-moment-integral lemma (the `(2k-1)!! / (2γ)^k · √(π/γ)` formula, not yet in Mathlib) or a
-computation of the Laplacian of a Gaussian, or the Boys function. We state the formulas here
-without proof, so the file documents the intended targets. -/
+/-! ## Gaussian moment integrals -/
 
 /-- The one-dimensional Gaussian even-moment formula:
   `M(2k, γ) = (2k-1)!! · √(π/γ) / (2γ)^k`. Odd moments vanish by symmetry. -/
@@ -17,10 +36,13 @@ noncomputable def gaussianMoment (n : ℕ) (γ : ℝ) : ℝ :=
   if n % 2 = 1 then 0
   else (Nat.doubleFactorial (n - 1) : ℝ) * Real.sqrt (π / γ) / (2 * γ) ^ (n / 2)
 
-/-- **Target lemma.** The 1D Gaussian moment integral equals `gaussianMoment n γ` for `γ > 0`.
-  Standard formula: `∫ x^n·exp(-γx²) dx = (n-1)‼·√(π/γ)/(2γ)^(n/2)` for even n, 0 for odd n.
-  Proof outline: induction on `n` using integration by parts
-  (`MeasureTheory.integral_mul_deriv_eq_deriv_mul_of_integrable`). -/
+/-- The 1D Gaussian moment integral equals `gaussianMoment n γ` for `γ > 0`:
+  `∫ x^n · exp(-γ x²) dx = (n-1)‼ · √(π/γ) / (2γ)^(n/2)` for even `n`, and `0` for odd `n`.
+
+The proof is by strong induction on `n`. The inductive step uses the integration-by-parts
+recurrence `I_{m+2} = (m+1)/(2γ) · I_m`, obtained by integrating the derivative of
+`x^(m+1) · exp(-γ x²)` (whose boundary terms vanish at `±∞`); the odd case vanishes by the
+symmetry `x ↦ -x`. -/
 lemma integral_gaussian_moment_1d (n : ℕ) (γ : ℝ) (hγ : γ > 0) :
     ∫ x : ℝ, x ^ n * Real.exp (-γ * x ^ 2) = gaussianMoment n γ := by
   -- Integrability of x^k * exp(-γ x²) on ℝ for any k : ℕ
@@ -170,6 +192,8 @@ lemma integral_gaussian_moment_1d (n : ℕ) (γ : ℝ) (hγ : γ > 0) :
         h_int_recurrence m
       _ = ((m + 1 : ℝ) / (2 * γ)) * gaussianMoment m γ := by rw [ih m (by omega)]
       _ = gaussianMoment (m + 2) γ := by rw [h_gm_recurrence m]
+
+/-! ## General angular-momentum overlap -/
 
 /-- The overlap of two same-center primitive GTOs with general angular momenta `l`, `m` factors
 into a product of one-dimensional Gaussian moments of total degree `lᵢ + mᵢ`.
@@ -595,6 +619,11 @@ lemma integrable_coord_sq_exp_neg_mul_sq_sum (γ : ℝ) (hγ : 0 < γ) (i : Fin 
 
 /-! ## Kinetic energy integral for s-type GTOs -/
 
+/-- The kinetic energy integral for two same-center s-type primitive GTOs:
+  `T = (αβ/(α+β)) · 3 · (√(π/(α+β)))³`.
+
+Equivalently `T = (αβ/(α+β)) · 3 · S` where `S` is the same-center overlap; the factor `3`
+counts the three spatial degrees of freedom. Requires `0 < α`, `0 < β`. -/
 theorem kinetic_primitiveGTO_s_same_center (α β : ℝ) (hα : 0 < α) (hβ : 0 < β) (R : ℝ³) :
     kinetic (primitiveGTO_s α R) (primitiveGTO_s β R) =
       (α * β / (α + β)) * 3 * (Real.sqrt (π / (α + β))) ^ 3 := by

@@ -5,16 +5,42 @@ import Mathlib.MeasureTheory.Function.JacobianOneDim
 import Mathlib.Analysis.SpecialFunctions.ImproperIntegrals
 import Mathlib.MeasureTheory.Integral.Prod
 
+/-!
+# Coulomb integrals and the Boys function
+
+This file derives the closed forms of the s-type **nuclear-attraction** and
+**electron-repulsion** (two-electron, ERI) integrals, expressing each in terms of the Boys
+function `boys0 t = ∫₀¹ exp(-t u²) du`.
+
+The route is the standard one. The Coulomb kernel `1/‖r - A‖` is rewritten almost-everywhere as
+a Gaussian integral `1/‖r-A‖ = (2/√π) ∫_{Ioi 0} exp(-‖r-A‖² t²) dt` (section 6). Swapping this
+against a Gaussian — justified by Tonelli/Fubini on a nonnegative integrand (section 8) — and
+evaluating the resulting 3D Gaussian product integral (section 5) leaves a 1D integral that the
+change of variables `u = t/√(γ+t²)`, mapping `(0,∞)` onto `(0,1)`, reduces exactly to `boys0`
+(section 7). The nuclear-attraction result (section 9) is one such swap; the ERI (section 11) is
+two nested swaps, with a second change of variables (section 10) handling the inner one.
+
+## Main results
+
+* `nuclearAttraction_primitiveGTO_s` — closed form of the one-electron nuclear attraction.
+* `electronRepulsion_primitiveGTO_s` — closed form of the two-electron repulsion integral.
+-/
+
 namespace GTO
 
 open Real MeasureTheory Set
 
 set_option linter.style.longLine false
 
+/-- The Boys function `boys0 t = ∫₀¹ exp(-t · u²) du`, the special function to which the
+nuclear-attraction and electron-repulsion integrals reduce. This is the zeroth Boys function
+`F₀(t)`; higher angular momenta would require `Fₖ(t) = ∫₀¹ u^(2k) exp(-t u²) du`. -/
 noncomputable def boys0 (t : ℝ) : ℝ := ∫ u in (0:ℝ)..1, Real.exp (-t * u ^ 2)
 
 /-! ## 1. Derivative of `u/√(γ+u²)` = `γ/(γ+u²)^(3/2)` -/
 
+/-- Derivative of `x ↦ x / √(γ + x²)`: it is `γ / (γ + x²)^(3/2)`, which is positive for
+`0 < γ`. This derivative is the Jacobian of the change of variables used in section 7. -/
 lemma hasDerivAt_u_div_sqrt_add_sq (γ : ℝ) (hγ : 0 < γ) (u : ℝ) :
     HasDerivAt (fun x : ℝ => x / Real.sqrt (γ + x ^ 2)) (γ / ((γ + u ^ 2) ^ (3/2 : ℝ))) u := by
   have h_add_pos : 0 < γ + u ^ 2 := by nlinarith
@@ -52,6 +78,8 @@ lemma hasDerivAt_u_div_sqrt_add_sq (γ : ℝ) (hγ : 0 < γ) (u : ℝ) :
 
 /-! ## 2. Strict monotonicity on (0,∞) -/
 
+/-- `x ↦ x / √(γ + x²)` is strictly increasing on `(0, ∞)` (its derivative is positive), so it
+is a valid change-of-variables map. -/
 lemma strictMonoOn_u_div_sqrt_add_sq (γ : ℝ) (hγ : 0 < γ) :
     StrictMonoOn (fun x : ℝ => x / Real.sqrt (γ + x ^ 2)) (Ioi 0) := by
   intro x hx y hy hxy
@@ -91,6 +119,8 @@ lemma strictMonoOn_u_div_sqrt_add_sq (γ : ℝ) (hγ : 0 < γ) :
 
 /-! ## 3. Image of (0,∞) is (0,1) -/
 
+/-- The map `x ↦ x / √(γ + x²)` sends `(0, ∞)` onto `(0, 1)`: the bound `x < √(γ + x²)` gives
+the upper limit `< 1`, and `y ↦ y√γ/√(1-y²)` is an explicit inverse. -/
 lemma image_Ioi_u_div_sqrt_add_sq (γ : ℝ) (hγ : 0 < γ) :
     (fun x : ℝ => x / Real.sqrt (γ + x ^ 2)) '' (Ioi (0 : ℝ)) = Ioo (0 : ℝ) 1 := by
   set f := fun x : ℝ => x / Real.sqrt (γ + x ^ 2) with hf
@@ -146,6 +176,10 @@ lemma image_Ioi_u_div_sqrt_add_sq (γ : ℝ) (hγ : 0 < γ) :
 
 /-! ## 4. Integral representation of `1/√s` -/
 
+/-- Gaussian integral representation of the inverse square root:
+  `1/√s = (2/√π) ∫_{Ioi 0} exp(-s t²) dt` for `0 < s`. Applied to `s = ‖r-A‖²`, this rewrites
+the Coulomb kernel `1/‖r-A‖` as a Gaussian integral, enabling a Fubini swap against a Gaussian
+basis function. -/
 lemma one_div_sqrt_eq_integral_Ioi (s : ℝ) (hs : 0 < s) :
     1 / Real.sqrt s = (2 / Real.sqrt π) * ∫ t in Ioi (0 : ℝ), Real.exp (-s * t ^ 2) := by
   rw [integral_gaussian_Ioi s]
@@ -158,6 +192,10 @@ lemma one_div_sqrt_eq_integral_Ioi (s : ℝ) (hs : 0 < s) :
 
 /-! ## 5. 3D Gaussian product integral -/
 
+/-- Product of two Gaussians as a single translated Gaussian (the 3D completing-the-square /
+Gaussian-product identity):
+  `∫ exp(-γ‖r‖² - t²‖r-A‖²) dr = (√(π/(γ+t²)))³ · exp(-γt²/(γ+t²) · ‖A‖²)`,
+with product center `(t²·A)/(γ+t²)`. -/
 lemma integral_exp_combined_3d (γ t : ℝ) (hγ : 0 < γ) (A : ℝ³) :
     (∫ r : ℝ³, Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2)) =
     (Real.sqrt (π / (γ + t ^ 2))) ^ 3 *
@@ -215,6 +253,9 @@ lemma integral_exp_combined_3d (γ t : ℝ) (hγ : 0 < γ) (A : ℝ³) :
 
 /-! ## 6. Coulomb potential AE representation -/
 
+/-- Almost-everywhere representation of the Coulomb kernel as a Gaussian integral:
+  `1/‖r - A‖ = (2/√π) ∫_{Ioi 0} exp(-‖r-A‖² t²) dt`, valid away from the singular point `r = A`
+(a null set). It is `one_div_sqrt_eq_integral_Ioi` applied to `s = ‖r-A‖²`. -/
 lemma coulomb_eq_integral_ae (A : ℝ³) :
     (fun r => coulomb r A) =ᵐ[volume] fun r => (2 / Real.sqrt π) * ∫ t in Ioi (0 : ℝ), Real.exp (-(∑ i, (r i - A i) ^ 2) * t ^ 2) := by
   have h_ae_ne : ∀ᵐ r : (ℝ³), r ≠ A := by
@@ -452,6 +493,14 @@ lemma integrable_prod_gaussian_coulomb (γ : ℝ) (hγ : 0 < γ) (A : ℝ³) :
         lintegral_indicator measurableSet_Ioi _
     _ < ⊤ := IntegrableOn.setLIntegral_lt_top (integrableOn_sqrt_pi_div_pow3 γ hγ)
 
+/-- Core Coulomb–Gaussian identity: for `0 < γ`,
+  `∫ exp(-γ‖r‖²) · (1/‖r-A‖) dr = (2π/γ) · boys0(γ · ‖A‖²)`.
+
+This is the building block of both the nuclear-attraction and electron-repulsion integrals: the
+Coulomb kernel is replaced by its AE Gaussian form, the integrals are swapped (Fubini, justified
+by `integrable_prod_gaussian_coulomb`), the inner 3D Gaussian is evaluated
+(`integral_exp_combined_3d`), and the remaining 1D integral is reduced to `boys0` by the change
+of variables of section 7. -/
 lemma integral_exp_neg_mul_sq_coulomb (γ : ℝ) (hγ : 0 < γ) (A : ℝ³) :
     (∫ r : ℝ³, Real.exp (-γ * ∑ i, (r i) ^ 2) * coulomb r A) = (2 * π / γ) * boys0 (γ * ∑ i, (A i) ^ 2) := by
   set S := ∑ i : Fin 3, (A i) ^ 2 with hS
@@ -539,8 +588,14 @@ lemma integral_exp_neg_mul_sq_coulomb (γ : ℝ) (hγ : 0 < γ) (A : ℝ³) :
       ring
     _ = (2 * π / γ) * boys0 (γ * ∑ i : Fin 3, (A i) ^ 2) := by rw [hS]
 
-/-! ## 8. Nuclear attraction integral -/
+/-! ## 9. Nuclear attraction integral -/
 
+/-- Closed form of the s-type nuclear-attraction integral. For `0 < α`, `0 < β`,
+  `⟨φ_α^{R₁} | 1/‖r-C‖ | φ_β^{R₂}⟩ = (2π/(α+β)) · K · boys0((α+β) · ‖P - C‖²)`,
+where `P = (αR₁+βR₂)/(α+β)` is the Gaussian product center and
+`K = exp(-αβ/(α+β) · ‖R₁-R₂‖²)` is the product-theorem prefactor. The Gaussian product theorem
+collapses the two-center bra-ket to a single Gaussian at `P` against the nucleus at `C`, after
+which `integral_exp_neg_mul_sq_coulomb` applies. -/
 theorem nuclearAttraction_primitiveGTO_s
     (α β : ℝ) (hα : 0 < α) (hβ : 0 < β) (R₁ R₂ C : ℝ³) :
     nuclearAttraction C (primitiveGTO_s α R₁) (primitiveGTO_s β R₂) =
@@ -616,7 +671,7 @@ theorem nuclearAttraction_primitiveGTO_s
         _ = (2 * π / (α + β)) * Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
               boys0 ((α + β) * ∑ i : Fin 3, ((α * R₁ i + β * R₂ i) / (α + β) - C i) ^ 2) := by rw [h_sum_eq]
 
-/-! ## 8b. Second change of variables for the ERI identity -/
+/-! ## 10. Change of variables for the ERI identity -/
 
 /-- Variant of `hasDerivAt_u_div_sqrt_add_sq` with a weighted quadratic `q + p·x²`
 (`q > 0`, `p ≥ 0`): `d/dx[x/√(q+p·x²)] = q/(q+p·x²)^(3/2)`. -/
@@ -741,6 +796,15 @@ private lemma integral_exp_combined_3d_nonneg (γ c : ℝ) (hγ : 0 < γ) (hc : 
     funext r; rw [htc]
   rw [h_eq, integral_exp_combined_3d γ t hγ A, htc]
 
+/-! ## 11. Electron repulsion integral -/
+
+/-- Closed form of the s-type two-electron repulsion integral (ERI). For positive exponents,
+  `(φ₁ φ₂ | φ₃ φ₄) = (2 π^(5/2)) / (p · q · √(p+q)) · K₁ · K₂ · boys0(pq/(p+q) · ‖P-Q‖²)`,
+where `p = α₁+α₂`, `q = α₃+α₄` are the pair exponents, `P = (α₁R₁+α₂R₂)/p`,
+`Q = (α₃R₃+α₄R₄)/q` the pair product centers, and `K₁`, `K₂` the product-theorem prefactors.
+The inner `r₂` integral is a nuclear-attraction-type integral yielding `boys0(q·‖r₁-Q‖²)`; the
+outer `r₁` integral is then a second Coulomb–Gaussian identity (via the change of variables of
+section 10) yielding `boys0(pq/(p+q)·‖P-Q‖²)`. -/
 theorem electronRepulsion_primitiveGTO_s
     (α₁ α₂ α₃ α₄ : ℝ) (hα₁ : 0 < α₁) (hα₂ : 0 < α₂) (hα₃ : 0 < α₃) (hα₄ : 0 < α₄)
     (R₁ R₂ R₃ R₄ : ℝ³) :

@@ -3,12 +3,36 @@ import Mathlib.MeasureTheory.Integral.Pi
 import Mathlib.MeasureTheory.Constructions.Pi
 import SecondQuantization.GTO.Defs
 
+/-!
+# Overlap integrals of s-type Gaussian orbitals
+
+This file evaluates the overlap integral `∫ φ(r) ψ(r) dr` in closed form for s-type primitive
+and contracted GTOs.
+
+The key tool is the *Gaussian product theorem*: the product of two s-type Gaussians centered at
+`R₁` and `R₂` is a scalar multiple of a single Gaussian centered at the weighted product center
+`P = (α·R₁ + β·R₂) / (α + β)`. The scalar prefactor is `exp(-αβ/(α+β) · ‖R₁ - R₂‖²)`, so the
+3D overlap reduces to a translated pure Gaussian integral `(√(π/(α+β)))³`.
+
+## Main results
+
+* `overlap_primitiveGTO_s_same_center` — same-center s-GTO overlap `(√(π/(α+β)))³`.
+* `overlap_primitiveGTO_s_diff_center` — the Gaussian product theorem for different centers.
+* `overlap_finset_sum_left`, `overlap_finset_sum_right` — bilinearity (sums pull out).
+* `overlap_contractedGTO_s` — overlap of two contracted s-GTOs, expanded over primitive pairs.
+
+The general angular-momentum overlap (arbitrary `l`, `m`) is handled in `Kinetic.lean`.
+-/
+
 namespace GTO
 
 open Real MeasureTheory
 
-/-- The overlap of two s-type primitive GTOs sharing the same center is
-  `∫ exp(-α‖r-R‖²) · exp(-β‖r-R‖²) dr = (√(π / (α + β)))^3`. -/
+/-- The overlap of two s-type primitive GTOs sharing the same center `R`:
+  `∫ exp(-α‖r-R‖²) · exp(-β‖r-R‖²) dr = (√(π / (α + β)))³`.
+
+The two exponents add (`α + β`), and translation invariance of Lebesgue measure removes the
+shift by `R`, leaving a product of three identical 1D Gaussian integrals. -/
 theorem overlap_primitiveGTO_s_same_center (α β : ℝ) (R : ℝ³) :
     overlap (primitiveGTO_s α R) (primitiveGTO_s β R) =
       (Real.sqrt (π / (α + β))) ^ 3 := by
@@ -60,8 +84,10 @@ theorem overlap_primitiveGTO_s_diff_center (α β : ℝ) (hαβ : α + β ≠ 0)
         Real.exp (-(α * β) / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) := by
   -- Define the product center P = (α·R₁ + β·R₂) / (α+β)
   set P : ℝ³ := fun i => (α * R₁ i + β * R₂ i) / (α + β) with hP
-  -- Complete the square (sign-flipped form): -α(x-a)² - β(x-b)²
-  --   = -αβ/(α+β)·(a-b)² - (α+β)·(x - (αa+βb)/(α+β))²
+  -- Complete the square (Gaussian product theorem, 1D): the sum of two downward quadratics
+  --   -α(x-a)² - β(x-b)² = -αβ/(α+β)·(a-b)² - (α+β)·(x - (αa+βb)/(α+β))².
+  -- The first term is the constant prefactor exp(-αβ/(α+β)·‖R₁-R₂‖²); the second is a single
+  -- Gaussian at the product center P = (αa+βb)/(α+β).
   have hsq : ∀ x a b : ℝ,
       -α * (x - a) ^ 2 + -β * (x - b) ^ 2
         = -(α * β) / (α + β) * (a - b) ^ 2
@@ -145,8 +171,10 @@ theorem overlap_finset_sum_right {ι : Type} [Fintype ι]
   simp_rw [Finset.mul_sum]
   exact MeasureTheory.integral_finset_sum _ (fun i _ => hint i)
 
-/-- The overlap of two contracted s-type GTOs expands bilinearly into the Gaussian product
-theorem over each pair of primitives. Requires `αᵢ + βⱼ ≠ 0` and integrability for every pair. -/
+/-- The overlap of two contracted s-type GTOs expands bilinearly: the double sum over primitives
+factors out of the integral, and each primitive pair is evaluated by the Gaussian product theorem
+(`overlap_primitiveGTO_s_diff_center`). Requires `αᵢ + βⱼ ≠ 0` (so each product center is
+defined) and integrability of every primitive pair. -/
 theorem overlap_contractedGTO_s {ι κ : Type} [Fintype ι] [Fintype κ]
     (c : ι → ℝ) (α : ι → ℝ) (R₁ : ℝ³)
     (d : κ → ℝ) (β : κ → ℝ) (R₂ : ℝ³)
