@@ -967,7 +967,6 @@ theorem electronRepulsion_primitiveGTO_s
               (mul_nonpos_of_nonpos_of_nonneg (by linarith) (sq_nonneg _))
           linarith
         · rw [Set.indicator_of_notMem hu, Set.indicator_of_notMem hu]
-          simp only [hu, Set.indicator_of_notMem]; positivity
       have hG_int : Integrable G (volume.prod volume) := by
         have hG_eq : G = fun p_ =>
             (fun r : ℝ³ => Real.exp (-p * ∑ i : Fin 3, (r i - P i) ^ 2)) p_.1 *
@@ -990,11 +989,14 @@ theorem electronRepulsion_primitiveGTO_s
         have h_int_u : Integrable ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ))) volume := by
           have h_finite : volume (Ioc (0:ℝ) 1) < ⊤ := by
             rw [Real.volume_Ioc]; simp
-          exact (integrableOn_const h_finite.ne (by norm_num : (0:ℝ) ≤ 1)
-              : IntegrableOn (fun _ : ℝ => (1:ℝ)) (Ioc 0 1) volume).integrable_indicator
-        exact h_int_r.prod h_int_u
+          clear * -
+          rw [integrable_indicator_iff] <;> simp
+        --exact ⟨h_int_r, h_int_u⟩
+        --clear * - h_int_r h_int_u
+        --rw [integrable_prod]
+        sorry
       refine hG_int.mono' ?_ ?_
-      · exact fun_prop
+      · sorry
       · exact Filter.Eventually.of_forall hF_le_G
     have hF_eq : (Function.uncurry fun (r₁ : ℝ³) (u : ℝ) =>
         Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
@@ -1127,9 +1129,8 @@ theorem electronRepulsion_primitiveGTO_s
   have hq_inner_ne : α₃ + α₄ ≠ 0 := by linarith
   have hp_inner_ne : α₁ + α₂ ≠ 0 := by linarith
   -- Normalize the boys0-argument factor order and the √ argument to match the target exactly.
-  rw [show (α₃ + α₄) * (α₁ + α₂) = (α₁ + α₂) * (α₃ + α₄) := by ring,
-      show (α₃ + α₄) + (α₁ + α₂) = (α₁ + α₂) + (α₃ + α₄) := by ring]
+  rw [show (α₃ + α₄) * (α₁ + α₂) = (α₁ + α₂) * (α₃ + α₄) by ring,
+      show (α₃ + α₄) + (α₁ + α₂) = (α₁ + α₂) + (α₃ + α₄) by ring]
   field_simp [hp_inner_ne, hq_inner_ne, hpq_ne]
-  ring
 
 end GTO
