@@ -19,7 +19,7 @@ def innerMatrix : Matrix (Finset α) (Finset α) 𝕜 :=
   fun φ ψ =>
     if  h : φ.card = ψ.card then
       Matrix.det <| fun (i j : Fin φ.card) =>
-        HasOverlap.overlap (φ.sort.get (i.cast (by simp))) (ψ.sort.get (i.cast (by simp[h])))
+        HasOverlap.overlap (φ.sort.get (i.cast (by simp))) (ψ.sort.get (j.cast (by simp[h])))
     else
       0
 
@@ -27,9 +27,6 @@ theorem innerMatrix_PosSemiDef : (innerMatrix α 𝕜).PosSemidef := by
   sorry
 
 end InnerProductSpace
-
---instance instInnerProduceSpaceOfHasOverlap [Fintype α] [HasOverlap α R] :
---    Inner
 
 variable {α} [LinearOrder α]
 
