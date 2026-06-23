@@ -994,9 +994,14 @@ theorem electronRepulsion_primitiveGTO_s
         --exact ⟨h_int_r, h_int_u⟩
         --clear * - h_int_r h_int_u
         --rw [integrable_prod]
-        sorry
+        exact h_int_r.mul_prod h_int_u
       refine hG_int.mono' ?_ ?_
-      · sorry
+      · have hF_meas : Measurable F := by
+          refine Measurable.mul ?_ ?_
+          · fun_prop
+          · refine Measurable.indicator ?_ (measurable_snd measurableSet_Ioc)
+            fun_prop
+        exact hF_meas.aestronglyMeasurable
       · exact Filter.Eventually.of_forall hF_le_G
     have hF_eq : (Function.uncurry fun (r₁ : ℝ³) (u : ℝ) =>
         Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
