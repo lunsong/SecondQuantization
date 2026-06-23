@@ -728,6 +728,19 @@ private lemma integral_Icc_gaussian_to_boys0 (p q S : ℝ) (hp : 0 < p) (hq : 0 
     _ = ((Real.sqrt π) ^ 3 / (q * Real.sqrt (p + q))) * boys0 (p * q / (p + q) * S) := by
       rw [hC, hρ]
 
+/-- Variant of `integral_exp_combined_3d` taking the second Gaussian's coefficient `c`
+directly (with `0 ≤ c`) instead of `t ^ 2`, avoiding `√` plumbing. -/
+private lemma integral_exp_combined_3d_nonneg (γ c : ℝ) (hγ : 0 < γ) (hc : 0 ≤ c) (A : ℝ³) :
+    (∫ r : ℝ³, Real.exp (-γ * ∑ i, (r i) ^ 2 - c * ∑ i, (r i - A i) ^ 2)) =
+    (Real.sqrt (π / (γ + c))) ^ 3 *
+      Real.exp (-(γ * c) / (γ + c) * ∑ i : Fin 3, (A i) ^ 2) := by
+  set t := Real.sqrt c with ht
+  have htc : t ^ 2 = c := by rw [ht, Real.sq_sqrt hc]
+  have h_eq : (fun r : ℝ³ => Real.exp (-γ * ∑ i, (r i) ^ 2 - c * ∑ i, (r i - A i) ^ 2)) =
+              (fun r : ℝ³ => Real.exp (-γ * ∑ i, (r i) ^ 2 - t ^ 2 * ∑ i, (r i - A i) ^ 2)) := by
+    funext r; rw [htc]
+  rw [h_eq, integral_exp_combined_3d γ t hγ A, htc]
+
 theorem electronRepulsion_primitiveGTO_s
     (α₁ α₂ α₃ α₄ : ℝ) (hα₁ : 0 < α₁) (hα₂ : 0 < α₂) (hα₃ : 0 < α₃) (hα₄ : 0 < α₄)
     (R₁ R₂ R₃ R₄ : ℝ³) :
@@ -740,6 +753,383 @@ theorem electronRepulsion_primitiveGTO_s
         boys0 ((α₁ + α₂) * (α₃ + α₄) / ((α₁ + α₂) + (α₃ + α₄)) *
           ∑ i : Fin 3, (((α₁ * R₁ i + α₂ * R₂ i) / (α₁ + α₂)) -
             ((α₃ * R₃ i + α₄ * R₄ i) / (α₃ + α₄))) ^ 2) := by
-    sorry
+  -- Abbreviations
+  set p : ℝ := α₁ + α₂ with hp
+  set q : ℝ := α₃ + α₄ with hq
+  have hp_pos : 0 < p := by dsimp [p]; linarith
+  have hq_pos : 0 < q := by dsimp [q]; linarith
+  have hpq_pos : 0 < p + q := by linarith
+  have hp_ne : p ≠ 0 := hp_pos.ne'
+  have hq_ne : q ≠ 0 := hq_pos.ne'
+  set P : ℝ³ := fun i => (α₁ * R₁ i + α₂ * R₂ i) / p with hP
+  set Q : ℝ³ := fun i => (α₃ * R₃ i + α₄ * R₄ i) / q with hQ
+  set K₁ : ℝ := Real.exp (-(α₁ * α₂) / p * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) with hK1
+  set K₂ : ℝ := Real.exp (-(α₃ * α₄) / q * ∑ i : Fin 3, (R₃ i - R₄ i) ^ 2) with hK2
+  -- Step 1: combine the two products of s-type GTOs (mirror nuclearAttraction `h_prod`).
+  have hsq12 : ∀ x a b : ℝ, -α₁ * (x - a) ^ 2 + -α₂ * (x - b) ^ 2 =
+      -(α₁ * α₂) / (α₁ + α₂) * (a - b) ^ 2 + -(α₁ + α₂) * (x - (α₁ * a + α₂ * b) / (α₁ + α₂)) ^ 2 := by
+    intro x a b; field_simp [hp_ne]; ring
+  have hsq34 : ∀ x a b : ℝ, -α₃ * (x - a) ^ 2 + -α₄ * (x - b) ^ 2 =
+      -(α₃ * α₄) / (α₃ + α₄) * (a - b) ^ 2 + -(α₃ + α₄) * (x - (α₃ * a + α₄ * b) / (α₃ + α₄)) ^ 2 := by
+    intro x a b; field_simp [hq_ne]; ring
+  have h_prod12 (r : ℝ³) :
+      primitiveGTO_s α₁ R₁ r * primitiveGTO_s α₂ R₂ r =
+        K₁ * Real.exp (-p * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+    dsimp [K₁, P, p]
+    simp only [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero, Finset.prod_const_one,
+      one_mul]
+    rw [← Real.exp_add, ← Real.exp_add]
+    congr 1
+    calc
+      -α₁ * ∑ i : Fin 3, (r i - R₁ i) ^ 2 + -α₂ * ∑ i : Fin 3, (r i - R₂ i) ^ 2
+          = ∑ i : Fin 3, (-α₁ * (r i - R₁ i) ^ 2 + -α₂ * (r i - R₂ i) ^ 2) := by
+        simp [Finset.mul_sum, Finset.sum_add_distrib]
+      _ = ∑ i : Fin 3,
+            (-(α₁ * α₂) / (α₁ + α₂) * (R₁ i - R₂ i) ^ 2 +
+              -(α₁ + α₂) * (r i - P i) ^ 2) := by
+        refine Finset.sum_congr rfl (fun i _ => ?_); dsimp [P]; rw [hsq12 (r i) (R₁ i) (R₂ i)]
+      _ = (-(α₁ * α₂) / (α₁ + α₂) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) +
+            (-(α₁ + α₂) * ∑ i : Fin 3, (r i - P i) ^ 2) := by
+        simp [Finset.mul_sum, Finset.sum_add_distrib]
+  have h_prod34 (r : ℝ³) :
+      primitiveGTO_s α₃ R₃ r * primitiveGTO_s α₄ R₄ r =
+        K₂ * Real.exp (-q * ∑ i : Fin 3, (r i - Q i) ^ 2) := by
+    dsimp [K₂, Q, q]
+    simp only [primitiveGTO_s, primitiveGTO, Pi.zero_apply, pow_zero, Finset.prod_const_one,
+      one_mul]
+    rw [← Real.exp_add, ← Real.exp_add]
+    congr 1
+    calc
+      -α₃ * ∑ i : Fin 3, (r i - R₃ i) ^ 2 + -α₄ * ∑ i : Fin 3, (r i - R₄ i) ^ 2
+          = ∑ i : Fin 3, (-α₃ * (r i - R₃ i) ^ 2 + -α₄ * (r i - R₄ i) ^ 2) := by
+        simp [Finset.mul_sum, Finset.sum_add_distrib]
+      _ = ∑ i : Fin 3,
+            (-(α₃ * α₄) / (α₃ + α₄) * (R₃ i - R₄ i) ^ 2 +
+              -(α₃ + α₄) * (r i - Q i) ^ 2) := by
+        refine Finset.sum_congr rfl (fun i _ => ?_); dsimp [Q]; rw [hsq34 (r i) (R₃ i) (R₄ i)]
+      _ = (-(α₃ * α₄) / (α₃ + α₄) * ∑ i : Fin 3, (R₃ i - R₄ i) ^ 2) +
+            (-(α₃ + α₄) * ∑ i : Fin 3, (r i - Q i) ^ 2) := by
+        simp [Finset.mul_sum, Finset.sum_add_distrib]
+  -- Coulomb symmetry: coulomb x y = coulomb y x.
+  have h_coulomb_sym (x y : ℝ³) : coulomb x y = coulomb y x := by
+    show 1 / Real.sqrt (∑ i, (x i - y i) ^ 2) = 1 / Real.sqrt (∑ i, (y i - x i) ^ 2)
+    refine congr_arg (fun t => 1 / Real.sqrt t) ?_
+    refine Finset.sum_congr rfl (fun i _ => ?_); ring
+  -- Coulomb translation invariance: coulomb (x - a) (y - a) = coulomb x y.
+  have h_coulomb_trans (a x y : ℝ³) : coulomb (x - a) (y - a) = coulomb x y := by
+    show 1 / Real.sqrt (∑ i, ((x - a) i - (y - a) i) ^ 2) = 1 / Real.sqrt (∑ i, (x i - y i) ^ 2)
+    refine congr_arg (fun t => 1 / Real.sqrt t) ?_
+    refine Finset.sum_congr rfl (fun i _ => ?_); simp [Pi.sub_apply]
+  -- Step 2: compute the inner r₂ integral, pointwise in r₁.
+  have h_inner_r2 (r₁ : ℝ³) :
+      (∫ r₂ : ℝ³, coulomb r₁ r₂ * primitiveGTO_s α₃ R₃ r₂ * primitiveGTO_s α₄ R₄ r₂) =
+        K₂ * ((2 * π / q) * boys0 (q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2)) := by
+    have h_reassoc :
+        (fun r₂ : ℝ³ => coulomb r₁ r₂ * primitiveGTO_s α₃ R₃ r₂ * primitiveGTO_s α₄ R₄ r₂) =
+          (fun r₂ : ℝ³ => K₂ * (coulomb r₁ r₂ * Real.exp (-q * ∑ i : Fin 3, (r₂ i - Q i) ^ 2))) := by
+      funext r₂
+      calc coulomb r₁ r₂ * primitiveGTO_s α₃ R₃ r₂ * primitiveGTO_s α₄ R₄ r₂
+          = coulomb r₁ r₂ * (primitiveGTO_s α₃ R₃ r₂ * primitiveGTO_s α₄ R₄ r₂) := by ring
+        _ = K₂ * (coulomb r₁ r₂ * Real.exp (-q * ∑ i : Fin 3, (r₂ i - Q i) ^ 2)) := by
+          rw [h_prod34 r₂]; ring
+    rw [h_reassoc, integral_const_mul]
+    have h_coul_trans_shift : ∀ r₂, coulomb r₁ r₂ = coulomb (r₁ - Q) (r₂ - Q) :=
+      fun r₂ => (h_coulomb_trans Q r₁ r₂).symm
+    have h_inner :
+        (∫ r₂ : ℝ³, coulomb r₁ r₂ * Real.exp (-q * ∑ i : Fin 3, (r₂ i - Q i) ^ 2)) =
+          (2 * π / q) * boys0 (q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2) := by
+      -- Translate coulomb r₁ r₂ to coulomb (r₁-Q)(r₂-Q), shift r₂ by Q.
+      have h_step1 : (∫ r₂ : ℝ³, coulomb r₁ r₂ * Real.exp (-q * ∑ i : Fin 3, (r₂ i - Q i) ^ 2)) =
+          (∫ r₂ : ℝ³, coulomb (r₁ - Q) (r₂ - Q) * Real.exp (-q * ∑ i : Fin 3, (r₂ i - Q i) ^ 2)) := by
+        refine integral_congr_ae ?_; filter_upwards with r₂; rw [h_coul_trans_shift r₂]
+      rw [h_step1]
+      -- Shift the integration variable r₂ by Q via integral_sub_right_eq_self.
+      have h_trans : (∫ r₂ : ℝ³, coulomb (r₁ - Q) (r₂ - Q) * Real.exp (-q * ∑ i : Fin 3, (r₂ i - Q i) ^ 2)) =
+          (∫ r₂ : ℝ³, coulomb (r₁ - Q) r₂ * Real.exp (-q * ∑ i : Fin 3, (r₂ i) ^ 2)) := by
+        have h_eq := integral_sub_right_eq_self (μ := (volume : Measure ℝ³))
+          (fun r : ℝ³ => coulomb (r₁ - Q) r * Real.exp (-q * ∑ i : Fin 3, (r i) ^ 2)) Q
+        rw [← h_eq]
+        refine integral_congr_ae ?_
+        filter_upwards with r₂
+        simp only [Pi.sub_apply]
+      rw [h_trans]
+      -- Swap coulomb args (symmetry) and apply the Coulomb-Gaussian lemma.
+      rw [show (∫ r₂ : ℝ³, coulomb (r₁ - Q) r₂ * Real.exp (-q * ∑ i : Fin 3, (r₂ i) ^ 2)) =
+            (∫ r₂ : ℝ³, Real.exp (-q * ∑ i : Fin 3, (r₂ i) ^ 2) * coulomb r₂ (r₁ - Q)) by
+        refine integral_congr_ae ?_; filter_upwards with r₂
+        rw [h_coulomb_sym (r₁ - Q) r₂]; ring]
+      rw [integral_exp_neg_mul_sq_coulomb q hq_pos (r₁ - Q)]
+      simp only [Pi.sub_apply]
+    rw [h_inner]
+  -- Step 3: rewrite the outer r₁ integral using h_inner_r2, pull out constants.
+  unfold electronRepulsion
+  have h_reassoc_outer :
+      (fun r₁ : ℝ³ => ∫ r₂ : ℝ³,
+        primitiveGTO_s α₁ R₁ r₁ * primitiveGTO_s α₂ R₂ r₁ * coulomb r₁ r₂ *
+          primitiveGTO_s α₃ R₃ r₂ * primitiveGTO_s α₄ R₄ r₂) =
+      (fun r₁ : ℝ³ => primitiveGTO_s α₁ R₁ r₁ * primitiveGTO_s α₂ R₂ r₁ *
+        (∫ r₂ : ℝ³, coulomb r₁ r₂ * primitiveGTO_s α₃ R₃ r₂ * primitiveGTO_s α₄ R₄ r₂)) := by
+    funext r₁
+    rw [show (∫ r₂ : ℝ³,
+          primitiveGTO_s α₁ R₁ r₁ * primitiveGTO_s α₂ R₂ r₁ * coulomb r₁ r₂ *
+            primitiveGTO_s α₃ R₃ r₂ * primitiveGTO_s α₄ R₄ r₂) =
+        (∫ r₂ : ℝ³, (primitiveGTO_s α₁ R₁ r₁ * primitiveGTO_s α₂ R₂ r₁) *
+          (coulomb r₁ r₂ * primitiveGTO_s α₃ R₃ r₂ * primitiveGTO_s α₄ R₄ r₂)) by
+      refine integral_congr_ae ?_; filter_upwards with r₂; ring,
+      integral_const_mul]
+  rw [h_reassoc_outer]
+  rw [show (∫ r₁ : ℝ³, primitiveGTO_s α₁ R₁ r₁ * primitiveGTO_s α₂ R₂ r₁ *
+        (∫ r₂ : ℝ³, coulomb r₁ r₂ * primitiveGTO_s α₃ R₃ r₂ * primitiveGTO_s α₄ R₄ r₂)) =
+      (∫ r₁ : ℝ³, primitiveGTO_s α₁ R₁ r₁ * primitiveGTO_s α₂ R₂ r₁ *
+        (K₂ * ((2 * π / q) * boys0 (q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2)))) by
+    refine integral_congr_ae ?_; filter_upwards with r₁; rw [h_inner_r2 r₁]]
+  rw [show (∫ r₁ : ℝ³, primitiveGTO_s α₁ R₁ r₁ * primitiveGTO_s α₂ R₂ r₁ *
+        (K₂ * ((2 * π / q) * boys0 (q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2)))) =
+      (∫ r₁ : ℝ³, (K₁ * Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2)) *
+        (K₂ * ((2 * π / q) * boys0 (q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2)))) by
+    refine integral_congr_ae ?_; filter_upwards with r₁; rw [h_prod12 r₁]]
+  -- Pull K₁ * K₂ * (2π/q) out of the integral.
+  rw [show (∫ r₁ : ℝ³, (K₁ * Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2)) *
+        (K₂ * ((2 * π / q) * boys0 (q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2)))) =
+      K₁ * (K₂ * ((2 * π / q) *
+        (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+          boys0 (q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2)))) by
+    rw [show (∫ r₁ : ℝ³, (K₁ * Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2)) *
+          (K₂ * ((2 * π / q) * boys0 (q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2)))) =
+        (∫ r₁ : ℝ³, K₁ * (K₂ * ((2 * π / q) *
+          (Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+            boys0 (q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2))))) by
+        refine integral_congr_ae ?_; filter_upwards with r₁; ring,
+      integral_const_mul, integral_const_mul, integral_const_mul]]
+  -- Step 4: Fubini swap ℝ³ × [0,1]. Expand boys0 as an interval integral and swap.
+  have h_SPQ : ∑ i : Fin 3, ((P - Q) i) ^ 2 = ∑ i : Fin 3, ((Q - P) i) ^ 2 := by
+    refine Finset.sum_congr rfl (fun i _ => ?_); simp [Pi.sub_apply]; ring
+  have h01 : (0 : ℝ) ≤ 1 := by norm_num
+  have h_swap :
+      (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+        boys0 (q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2)) =
+      (∫ u in (0:ℝ)..1, (∫ r₁ : ℝ³,
+        Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2 -
+          (q * u ^ 2) * ∑ i : Fin 3, (r₁ i - Q i) ^ 2))) := by
+    -- boys0 t = ∫ u in 0..1, exp(-t u²)  (definitional)
+    have h_boys0_rw : ∀ r₁ : ℝ³,
+        boys0 (q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2) =
+          ∫ u in (0:ℝ)..1, Real.exp (-(q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2) * u ^ 2) := by
+      intro r₁; rfl
+    -- (1) replace boys0 by the interval integral
+    rw [show (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+          boys0 (q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2)) =
+        (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+          (∫ u in (0:ℝ)..1, Real.exp (-(q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2) * u ^ 2))) by
+      refine integral_congr_ae ?_; filter_upwards with r₁; rw [h_boys0_rw r₁]]
+    -- (2) interval integral ↔ set integral over Ioc 0 1
+    rw [show (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+          (∫ u in (0:ℝ)..1, Real.exp (-(q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2) * u ^ 2))) =
+        (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+          (∫ u in Ioc (0:ℝ) 1, Real.exp (-(q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2) * u ^ 2))) by
+      refine integral_congr_ae ?_; filter_upwards with r₁
+      rw [← intervalIntegral.integral_of_le h01]]
+    -- (3) set integral ↔ whole-space indicator; pull exp(-pΣ) inside the u-integral.
+    rw [show (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+          (∫ u in Ioc (0:ℝ) 1, Real.exp (-(q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2) * u ^ 2))) =
+        (∫ r₁ : ℝ³, ∫ u : ℝ, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+          ((Ioc (0:ℝ) 1).indicator
+            (fun u => Real.exp (-(q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2) * u ^ 2)) u)) by
+      refine integral_congr_ae ?_; filter_upwards with r₁
+      rw [← integral_indicator measurableSet_Ioc, ← integral_const_mul]]
+    -- (4) integrability of the joint function, then Fubini.
+    set F : ℝ³ × ℝ → ℝ := fun p_ => Real.exp (-p * ∑ i : Fin 3, (p_.1 i - P i) ^ 2) *
+        ((Ioc (0:ℝ) 1).indicator
+          (fun u => Real.exp (-(q * ∑ i : Fin 3, (p_.1 i - Q i) ^ 2) * u ^ 2)) p_.2) with hFdef
+    have hF_int : Integrable F (volume.prod volume) := by
+      set G : ℝ³ × ℝ → ℝ := fun p_ =>
+        Real.exp (-p * ∑ i : Fin 3, (p_.1 i - P i) ^ 2) *
+          ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) p_.2) with hGdef
+      have hF_le_G : ∀ x, ‖F x‖ ≤ G x := by
+        intro x
+        have hFn : 0 ≤ F x := by
+          simp only [F]
+          by_cases hu : x.2 ∈ Ioc (0:ℝ) 1
+          · rw [Set.indicator_of_mem hu]; positivity
+          · rw [Set.indicator_of_notMem hu]; positivity
+        rw [Real.norm_eq_abs, abs_of_nonneg hFn]
+        simp only [F, G]
+        by_cases hu : x.2 ∈ Ioc (0:ℝ) 1
+        · rw [Set.indicator_of_mem hu, Set.indicator_of_mem hu]
+          refine mul_le_mul_of_nonneg_left ?_ (Real.exp_nonneg _)
+          have h_qu_nn : 0 ≤ q * ∑ i, (x.1 i - Q i) ^ 2 := by
+            refine mul_nonneg hq_pos.le ?_
+            exact Finset.sum_nonneg (fun _ _ => sq_nonneg _)
+          have h_prod_nn : 0 ≤ (q * ∑ i, (x.1 i - Q i) ^ 2) * x.2 ^ 2 :=
+            mul_nonneg h_qu_nn (sq_nonneg _)
+          have h_le1 : Real.exp (-((q * ∑ i, (x.1 i - Q i) ^ 2)) * x.2 ^ 2) ≤ 1 := by
+            exact Real.exp_le_one_iff.mpr
+              (mul_nonpos_of_nonpos_of_nonneg (by linarith) (sq_nonneg _))
+          linarith
+        · rw [Set.indicator_of_notMem hu, Set.indicator_of_notMem hu]
+          simp only [hu, Set.indicator_of_notMem]; positivity
+      have hG_int : Integrable G (volume.prod volume) := by
+        have hG_eq : G = fun p_ =>
+            (fun r : ℝ³ => Real.exp (-p * ∑ i : Fin 3, (r i - P i) ^ 2)) p_.1 *
+            ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) p_.2) := by rfl
+        rw [hG_eq]
+        have h_int_r : Integrable (fun r : ℝ³ => Real.exp (-p * ∑ i : Fin 3, (r i - P i) ^ 2))
+            volume := by
+          have h_each : Integrable (fun x : ℝ => Real.exp (-p * x ^ 2)) volume :=
+            integrable_exp_neg_mul_sq hp_pos
+          have h_prod_centered : Integrable
+              (fun r : ℝ³ => ∏ i, Real.exp (-p * (r i - P i) ^ 2)) volume := by
+            have h_base : Integrable (fun r : ℝ³ => ∏ i, Real.exp (-p * (r i) ^ 2)) volume :=
+              Integrable.fintype_prod (μ := fun _ => volume) (fun _ => h_each)
+            have h_eq : (fun r : ℝ³ => ∏ i, Real.exp (-p * (r i - P i) ^ 2)) =
+                fun r : ℝ³ => ∏ i, Real.exp (-p * ((r - P) i) ^ 2) := by
+              funext r; simp only [Pi.sub_apply]
+            rw [h_eq]; exact h_base.comp_sub_right P
+          convert h_prod_centered using 1
+          funext r; rw [Finset.mul_sum, ← Real.exp_sum]
+        have h_int_u : Integrable ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ))) volume := by
+          have h_finite : volume (Ioc (0:ℝ) 1) < ⊤ := by
+            rw [Real.volume_Ioc]; simp
+          exact (integrableOn_const h_finite.ne (by norm_num : (0:ℝ) ≤ 1)
+              : IntegrableOn (fun _ : ℝ => (1:ℝ)) (Ioc 0 1) volume).integrable_indicator
+        exact h_int_r.prod h_int_u
+      refine hG_int.mono' ?_ ?_
+      · exact fun_prop
+      · exact Filter.Eventually.of_forall hF_le_G
+    have hF_eq : (Function.uncurry fun (r₁ : ℝ³) (u : ℝ) =>
+        Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+          ((Ioc (0:ℝ) 1).indicator
+            (fun u => Real.exp (-(q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2) * u ^ 2)) u)) = F := by
+      ext ⟨r₁, u⟩; rfl
+    rw [show (∫ r₁ : ℝ³, ∫ u : ℝ, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+          ((Ioc (0:ℝ) 1).indicator
+            (fun u => Real.exp (-(q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2) * u ^ 2)) u)) =
+        (∫ r₁ : ℝ³, ∫ u : ℝ, F (r₁, u)) by rfl, integral_integral_swap hF_int]
+    -- (5) split off the indicator; combine the two exponentials.
+    rw [show (∫ u : ℝ, ∫ r₁ : ℝ³, F (r₁, u)) =
+        (∫ u : ℝ, ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) u) *
+          (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+            Real.exp (-(q * u ^ 2) * ∑ i : Fin 3, (r₁ i - Q i) ^ 2))) by
+      refine integral_congr_ae ?_; filter_upwards with u
+      have h_ind (r₁ : ℝ³) : ((Ioc (0:ℝ) 1).indicator
+            (fun u => Real.exp (-(q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2) * u ^ 2)) u) =
+          ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) u) *
+            Real.exp (-(q * u ^ 2) * ∑ i : Fin 3, (r₁ i - Q i) ^ 2) := by
+        by_cases hu : u ∈ Ioc (0:ℝ) 1
+        · rw [Set.indicator_of_mem hu, Set.indicator_of_mem hu, one_mul]; congr 1; ring
+        · rw [Set.indicator_of_notMem hu, Set.indicator_of_notMem hu]; ring
+      calc (∫ r₁ : ℝ³, F (r₁, u))
+          = (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+              ((Ioc (0:ℝ) 1).indicator
+                (fun u => Real.exp (-(q * ∑ i : Fin 3, (r₁ i - Q i) ^ 2) * u ^ 2)) u)) := rfl
+        _ = (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+              (((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) u) *
+                Real.exp (-(q * u ^ 2) * ∑ i : Fin 3, (r₁ i - Q i) ^ 2))) := by
+          refine integral_congr_ae ?_; filter_upwards with r₁; rw [h_ind r₁]
+        _ = ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) u) *
+              (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+                Real.exp (-(q * u ^ 2) * ∑ i : Fin 3, (r₁ i - Q i) ^ 2)) := by
+          rw [show (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+                (((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) u) *
+                  Real.exp (-(q * u ^ 2) * ∑ i : Fin 3, (r₁ i - Q i) ^ 2))) =
+              (∫ r₁ : ℝ³, ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) u) *
+                (Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+                  Real.exp (-(q * u ^ 2) * ∑ i : Fin 3, (r₁ i - Q i) ^ 2))) by
+              refine integral_congr_ae ?_; filter_upwards with r₁; ring,
+            integral_const_mul]]
+    -- (6) combine the two exps into one.
+    rw [show (∫ u : ℝ, ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) u) *
+          (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2) *
+            Real.exp (-(q * u ^ 2) * ∑ i : Fin 3, (r₁ i - Q i) ^ 2))) =
+        (∫ u : ℝ, ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) u) *
+          (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2 -
+            (q * u ^ 2) * ∑ i : Fin 3, (r₁ i - Q i) ^ 2))) by
+      refine integral_congr_ae ?_; filter_upwards with u
+      refine congr_arg _ ?_
+      refine integral_congr_ae ?_; filter_upwards with r₁
+      rw [← Real.exp_add]; ring_nf]
+    -- (7) collapse the indicator back to a set integral over Ioc 0 1, then to an interval integral.
+    rw [show (∫ u : ℝ, ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) u) *
+          (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2 -
+            (q * u ^ 2) * ∑ i : Fin 3, (r₁ i - Q i) ^ 2))) =
+        (∫ u in Ioc (0:ℝ) 1, (∫ r₁ : ℝ³,
+          Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2 - (q * u ^ 2) * ∑ i : Fin 3,
+            (r₁ i - Q i) ^ 2))) by
+      rw [show (∫ u : ℝ, ((Ioc (0:ℝ) 1).indicator (fun _ => (1:ℝ)) u) *
+            (∫ r₁ : ℝ³, Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2 -
+              (q * u ^ 2) * ∑ i : Fin 3, (r₁ i - Q i) ^ 2))) =
+          (∫ u : ℝ, (Ioc (0:ℝ) 1).indicator
+            (fun u => ∫ r₁ : ℝ³,
+              Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2 - (q * u ^ 2) * ∑ i : Fin 3,
+                (r₁ i - Q i) ^ 2)) u) by
+        refine integral_congr_ae ?_; filter_upwards with u
+        by_cases hu : u ∈ Ioc (0:ℝ) 1 <;> simp [Set.indicator, hu],
+        ← integral_indicator measurableSet_Ioc]]
+    rw [intervalIntegral.integral_of_le h01]
+  rw [h_swap]
+  -- Step 5: shift r₁ by P, apply helper with γ=p, c=q*u², A=Q-P.
+  have h_c_nn (u : ℝ) : 0 ≤ q * u ^ 2 := by
+    refine mul_nonneg hq_pos.le ?_; exact sq_nonneg _
+  rw [show (∫ u in (0:ℝ)..1, (∫ r₁ : ℝ³,
+        Real.exp (-p * ∑ i : Fin 3, (r₁ i - P i) ^ 2 -
+          (q * u ^ 2) * ∑ i : Fin 3, (r₁ i - Q i) ^ 2))) =
+      (∫ u in (0:ℝ)..1, (∫ r₁ : ℝ³,
+        Real.exp (-p * ∑ i : Fin 3, (r₁ i) ^ 2 -
+          (q * u ^ 2) * ∑ i : Fin 3, (r₁ i - (Q - P) i) ^ 2))) by
+    refine intervalIntegral.integral_congr (fun u _ => ?_)
+    have h_trans := integral_sub_right_eq_self (μ := (volume : Measure ℝ³))
+      (fun r₁ : ℝ³ => Real.exp (-p * ∑ i, (r₁ i) ^ 2 -
+        (q * u ^ 2) * ∑ i, (r₁ i - (Q - P) i) ^ 2)) P
+    rw [← h_trans]
+    refine integral_congr_ae ?_
+    filter_upwards with r₁
+    simp [Pi.sub_apply]]
+  -- Apply the helper: γ=p, c=q*u², A=Q-P.
+  have h_inner (u : ℝ) : (∫ r₁ : ℝ³,
+      Real.exp (-p * ∑ i : Fin 3, (r₁ i) ^ 2 - (q * u ^ 2) * ∑ i, (r₁ i - (Q - P) i) ^ 2)) =
+    (Real.sqrt (π / (p + q * u ^ 2))) ^ 3 *
+      Real.exp (-(p * (q * u ^ 2)) / (p + q * u ^ 2) * ∑ i : Fin 3, ((Q - P) i) ^ 2) := by
+    rw [integral_exp_combined_3d_nonneg p (q * u ^ 2) hp_pos (h_c_nn u) (Q - P)]
+  simp_rw [h_inner]
+  -- Step 6: outer u integral via integral_Icc_gaussian_to_boys0.
+  -- Lemma with lemma's p := q, lemma's q := p, S := Σ(Q-P)², so the denominators match p+q*u².
+  rw [show (∫ u in (0:ℝ)..1, (Real.sqrt (π / (p + q * u ^ 2))) ^ 3 *
+        Real.exp (-(p * (q * u ^ 2)) / (p + q * u ^ 2) * ∑ i : Fin 3, ((Q - P) i) ^ 2)) =
+      (∫ u in (0:ℝ)..1, (Real.sqrt (π / (p + q * u ^ 2))) ^ 3 *
+        Real.exp (-(q * p * u ^ 2) / (p + q * u ^ 2) * ∑ i : Fin 3, ((Q - P) i) ^ 2)) by
+    refine intervalIntegral.integral_congr (fun u _ => ?_)
+    refine congr_arg (fun t => (Real.sqrt (π / (p + q * u ^ 2))) ^ 3 * Real.exp t) ?_
+    field_simp
+    try ring,
+    integral_Icc_gaussian_to_boys0 q p (∑ i : Fin 3, ((Q - P) i) ^ 2) hq_pos hp_pos]
+  -- Step 7: reconcile constants and the boys0 argument; unfold p,q,P,Q,K₁,K₂ to the target.
+  have h_sqrt_pi_cube : (Real.sqrt π) ^ 3 = π ^ (3/2 : ℝ) := by
+    have h1 : (Real.sqrt π) ^ 3 = ((Real.sqrt π) ^ 2) * Real.sqrt π := by ring
+    rw [h1, Real.sq_sqrt (by positivity : 0 ≤ π)]
+    have h_pi_1 : π ^ (1 : ℝ) = π := by simp
+    rw [show (3/2 : ℝ) = 1 + (1/2 : ℝ) by norm_num, Real.rpow_add Real.pi_pos,
+      Real.sqrt_eq_rpow, h_pi_1]
+  have h_pi_5_2 : π ^ (5/2 : ℝ) = π * π ^ (3/2 : ℝ) := by
+    rw [show (5/2 : ℝ) = 1 + (3/2 : ℝ) by norm_num, Real.rpow_add Real.pi_pos]
+    simp
+  rw [h_sqrt_pi_cube, h_pi_5_2]
+  -- The boys0 argument: qp/(p+q) * Σ(Q-P)² = pq/(p+q) * Σ(P-Q)² with P,Q unfolded.
+  have h_SPQ_symm : ∑ i : Fin 3, ((Q - P) i) ^ 2 =
+      ∑ i : Fin 3, (((α₁ * R₁ i + α₂ * R₂ i) / (α₁ + α₂)) -
+        ((α₃ * R₃ i + α₄ * R₄ i) / (α₃ + α₄))) ^ 2 := by
+    refine Finset.sum_congr rfl (fun i _ => ?_)
+    simp only [Pi.sub_apply]
+    dsimp only [P, Q, p, q]
+    ring
+  rw [h_SPQ_symm]
+  dsimp only [K₁, K₂, p, q]
+  have hpq_ne : α₁ + α₂ + (α₃ + α₄) ≠ 0 := by linarith
+  have hq_inner_ne : α₃ + α₄ ≠ 0 := by linarith
+  have hp_inner_ne : α₁ + α₂ ≠ 0 := by linarith
+  -- Normalize the boys0-argument factor order and the √ argument to match the target exactly.
+  rw [show (α₃ + α₄) * (α₁ + α₂) = (α₁ + α₂) * (α₃ + α₄) := by ring,
+      show (α₃ + α₄) + (α₁ + α₂) = (α₁ + α₂) + (α₃ + α₄) := by ring]
+  field_simp [hp_inner_ne, hq_inner_ne, hpq_ne]
+  ring
 
 end GTO
