@@ -1,32 +1,46 @@
 import Mathlib.Tactic
 import Mathlib.LinearAlgebra.Matrix.PosDef
+import Mathlib.Analysis.Matrix.PosDef
 
 namespace Fermion
 
-variable (α R 𝕜 : Type) [CommRing R] [PartialOrder 𝕜] [CommRing 𝕜] [StarRing 𝕜] 
+variable (α R : Type) [RCLike R]
+
+open scoped ComplexOrder
 
 abbrev Operator := (Finset α → R) →ₗ[R] (Finset α → R)
 
-class HasOverlap where
-  overlap : Matrix α α 𝕜
-  overlap_PosSemidef : overlap.PosSemidef
+class HasOverlap (α : Type) (R : outParam Type) [RCLike R] where
+  overlap : Matrix α α R
+  overlap_PosDef : overlap.PosDef
 
-namespace InnerProductSpace
+namespace HasOverlap
 
-variable [HasOverlap α 𝕜] [LinearOrder α] 
+variable [HasOverlap α R] [LinearOrder α] 
 
-def innerMatrix : Matrix (Finset α) (Finset α) 𝕜 :=
+def innerMatrix : Matrix (Finset α) (Finset α) R :=
   fun φ ψ =>
     if  h : φ.card = ψ.card then
       Matrix.det <| fun (i j : Fin φ.card) =>
-        HasOverlap.overlap (φ.sort.get (i.cast (by simp))) (ψ.sort.get (j.cast (by simp[h])))
+        overlap (φ.sort.get (i.cast (by simp))) (ψ.sort.get (j.cast (by simp[h])))
     else
       0
 
-theorem innerMatrix_PosSemiDef : (innerMatrix α 𝕜).PosSemidef := by
+theorem innerMatrix_PosDef : (innerMatrix α R).PosDef := by
   sorry
 
-end InnerProductSpace
+variable [Fintype α]
+
+noncomputable instance instNormedAddCommGroup : NormedAddCommGroup (Finset α → R) :=
+  Matrix.toNormedAddCommGroup (innerMatrix α R) (innerMatrix_PosDef α R)
+
+noncomputable instance instSemiNormedAddCommGroup : SeminormedAddCommGroup (Finset α → R) :=
+  Matrix.toSeminormedAddCommGroup (innerMatrix α R) (innerMatrix_PosDef α R).posSemidef
+
+noncomputable instance instInnerProductSpace : InnerProductSpace R (Finset α → R) :=
+  Matrix.toInnerProductSpace (innerMatrix α R) (innerMatrix_PosDef α R).posSemidef
+
+end HasOverlap
 
 variable {α} [LinearOrder α]
 
@@ -77,6 +91,8 @@ def ann (x : α) : Operator α R where
       ite_mul, one_mul, neg_mul, neg_add_rev, ite_not]
     grind
 
+variable {R}
+
 set_option linter.flexible false in
 theorem cre_ann {x y : α} : cre R x * ann R y + ann R y * cre R x = if x = y then 1 else 0 := by
   ext φ s
@@ -111,5 +127,10 @@ theorem ann_ann {x y : α} : ann R x * ann R y + ann R y * ann R x = 0 := by
   split_ifs
   any_goals simp
   any_goals grind
+
+open HasOverlap in
+theorem cre_adj [Fintype α] [HasOverlap α R] {x : α} :
+    (cre R x).adjoint = ∑ y, (overlap x y) • (ann R y) := by
+  sorry
 
 end Fermion
