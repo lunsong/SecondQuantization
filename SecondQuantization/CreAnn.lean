@@ -133,4 +133,11 @@ theorem cre_adj [Fintype α] [HasOverlap α R] {x : α} :
     (cre R x).adjoint = ∑ y, (overlap x y) • (ann R y) := by
   sorry
 
+theorem exp_conj {ι : Type} [Fintype ι] [DecidableEq ι]
+  (A : Operator α R) (x : ι → Operator α R) (K : Matrix ι ι R)
+  (h_ad : ∀ i, A * x i - x i * A = ∑ j, K i j • x j) :
+    ∀ i, NormedSpace.exp A * x i * NormedSpace.exp (-A) = ∑ j, (NormedSpace.exp K) i j • x j := by
+  sorry
+
 end Fermion
+
