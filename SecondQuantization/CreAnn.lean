@@ -116,31 +116,30 @@ instance [Fintype α] : CompleteSpace (Operator α R →L[R] Operator α R) :=
 --def mulLeft : Operator α R →L[R] Operator α R →L[R] Operator α R := by
 
 set_option maxHeartbeats 0 in
-open ContinuousLinearMap in
 theorem exp_adj [Fintype α] (A : Operator α R) {ι : Type} [Fintype ι] [DecidableEq ι]
   (x : ι → Operator α R) (K : Matrix ι ι R)
   (h : ∀ i, A * x i - x i * A = ∑ j, K i j • x j) :
     ∀ i, NormedSpace.exp A * x i * NormedSpace.exp (-A) = ∑ j, (NormedSpace.exp K) i j • x j := by
-  let A_left := mulLeftRight R (Operator α R) A 1
-  let A_right := mulLeftRight R (Operator α R) 1 (-A)
+  let A_left := ContinuousLinearMap.mulLeftRight R (Operator α R) A 1
+  let A_right := ContinuousLinearMap.mulLeftRight R (Operator α R) 1 (-A)
   have commute_A_left_A_right : Commute A_left A_right := by
     ext X φ s
     simp [A_left, A_right]
   have := NormedSpace.exp_add_of_commute commute_A_left_A_right
-  have A_left_pow (n : ℕ) : A_left ^ n = mulLeftRight R (Operator α R) (A ^ n) 1 := by
+  have A_left_pow (n : ℕ) : A_left ^ n = ContinuousLinearMap.mulLeftRight R (Operator α R) (A ^ n) 1 := by
     induction n with
     | zero => rfl
     | succ n ih =>
       rw [pow_succ, ih, pow_succ]
       ext X φ s
       simp [A_left]
-  have A_right_pow (n : ℕ) : A_right ^ n = mulLeftRight R (Operator α R) 1 ((-A) ^ n) := by
+  have A_right_pow (n : ℕ) : A_right ^ n = ContinuousLinearMap.mulLeftRight R (Operator α R) 1 ((-A) ^ n) := by
     induction n with
     | zero => rfl
     | succ n ih =>
       rw [pow_succ, ih, pow_succ]
       ext X φ s
-      simp only [coe_mul, Function.comp_apply, mulLeftRight_apply, one_mul, A_right]
+      simp only [ContinuousLinearMap.coe_mul, Function.comp_apply, ContinuousLinearMap.mulLeftRight_apply, one_mul, A_right]
       apply congr_fun
       congr 1
       change (-A * (-A) ^ n) φ = ((-A) ^ n * -A) φ
@@ -148,24 +147,24 @@ theorem exp_adj [Fintype α] (A : Operator α R) {ι : Type} [Fintype ι] [Decid
       trans (-A) ^ (n + 1)
       · rw [add_comm, pow_add, pow_one]
       · rw [pow_succ]
-  have exp_A_left : NormedSpace.exp A_left = mulLeftRight R (Operator α R) (NormedSpace.exp A) 1 := by
+  have exp_A_left : NormedSpace.exp A_left = ContinuousLinearMap.mulLeftRight R (Operator α R) (NormedSpace.exp A) 1 := by
     rw [NormedSpace.exp_eq_tsum R]
     simp only [A_left_pow]
     apply HasSum.tsum_eq
     simp only [HasSum, SummationFilter.unconditional_filter]
     conv =>
       arg 1
-      equals (fun x ↦ mulLeftRight R (Operator α R) x 1) ∘ (fun s ↦ ∑ x ∈ s, (x.factorial : R)⁻¹ • A ^ x) =>
+      equals (fun x ↦ ContinuousLinearMap.mulLeftRight R (Operator α R) x 1) ∘ (fun s ↦ ∑ x ∈ s, (x.factorial : R)⁻¹ • A ^ x) =>
         apply funext
         intro s
-        simp only [Function.comp_apply, map_sum, map_smul, coe_sum', coe_smul', Finset.sum_apply,
+        simp only [Function.comp_apply, map_sum, map_smul, ContinuousLinearMap.coe_sum', ContinuousLinearMap.coe_smul', Finset.sum_apply,
           Pi.smul_apply]
     apply Filter.Tendsto.comp (y := nhds (NormedSpace.exp A))
-    · change ContinuousAt (fun x ↦ ((mulLeftRight R (Operator α R)) x) 1) (NormedSpace.exp A)
+    · change ContinuousAt (fun x ↦ ((ContinuousLinearMap.mulLeftRight R (Operator α R)) x) 1) (NormedSpace.exp A)
       apply Continuous.continuousAt
       conv =>
         arg 1
-        equals (fun x ↦ x 1) ∘ mulLeftRight R (Operator α R) =>
+        equals (fun x ↦ x 1) ∘ ContinuousLinearMap.mulLeftRight R (Operator α R) =>
           apply funext
           intro x
           simp
@@ -173,24 +172,24 @@ theorem exp_adj [Fintype α] (A : Operator α R) {ι : Type} [Fintype ι] [Decid
       · apply Continuous.clm_apply
         · apply continuous_id'
         · apply continuous_const
-      exact (mulLeftRight R (Operator α R)).cont
+      exact (ContinuousLinearMap.mulLeftRight R (Operator α R)).cont
     exact NormedSpace.exp_series_hasSum_exp' A
 
-  have exp_A_right : NormedSpace.exp A_right = mulLeftRight R (Operator α R) 1 (NormedSpace.exp (-A)) := by
+  have exp_A_right : NormedSpace.exp A_right = ContinuousLinearMap.mulLeftRight R (Operator α R) 1 (NormedSpace.exp (-A)) := by
     rw [NormedSpace.exp_eq_tsum R]
     simp only [A_right_pow]
     apply HasSum.tsum_eq
     simp only [HasSum, SummationFilter.unconditional_filter]
     conv =>
       arg 1
-      equals (fun x ↦ mulLeftRight R (Operator α R) 1 x) ∘ (fun s ↦ ∑ x ∈ s, (x.factorial : R)⁻¹ • (-A) ^ x) =>
+      equals (fun x ↦ ContinuousLinearMap.mulLeftRight R (Operator α R) 1 x) ∘ (fun s ↦ ∑ x ∈ s, (x.factorial : R)⁻¹ • (-A) ^ x) =>
         apply funext
         intro s
         simp only [Function.comp_apply, map_sum, map_smul]
     apply Filter.Tendsto.comp (y := nhds (NormedSpace.exp (-A)))
-    · change ContinuousAt (fun x ↦ ((mulLeftRight R (Operator α R)) 1) x) (NormedSpace.exp (-A))
+    · change ContinuousAt (fun x ↦ ((ContinuousLinearMap.mulLeftRight R (Operator α R)) 1) x) (NormedSpace.exp (-A))
       apply Continuous.continuousAt
-      exact (mulLeftRight R (Operator α R) 1).cont
+      exact (ContinuousLinearMap.mulLeftRight R (Operator α R) 1).cont
     exact NormedSpace.exp_series_hasSum_exp' (-A)
   have ad_pow (n : ℕ) : ∀ i, ((A_left + A_right) ^ n) (x i) = ∑ j, (K ^ n) i j • x j := by
     induction n with
@@ -215,13 +214,74 @@ theorem exp_adj [Fintype α] (A : Operator α R) {ι : Type} [Fintype ι] [Decid
       rw [add_comm, pow_add, pow_one]
   have exp_ad : ∀ i, NormedSpace.exp (A_left + A_right) (x i) = ∑ j, NormedSpace.exp K i j • x j := by
     intro i
-    simp [NormedSpace.exp_eq_tsum R]
-    --trans ∑' (n : ℕ), (n.factorial : R)⁻¹ • ((A_left + A_right) ^ n) (x i)
-    --· have := tsum_apply (x := x i) (L := SummationFilter.unconditional ℕ) (f := fun n ↦ (n.factorial : R)⁻¹ • ((A_left + A_right) ^ n))
-    --    (NormedSpace.exp_series_hasSum_exp' (A_left + A_right)).summable)
-    apply HasSum.tsum_eq
+    simp only [NormedSpace.exp_eq_tsum R]
+    trans ∑' (n : ℕ), (n.factorial : R)⁻¹ • ((A_left + A_right) ^ n) (x i)
+    · apply Eq.symm
+      apply HasSum.tsum_eq
+      simp only [HasSum, SummationFilter.unconditional_filter]
+      conv =>
+        arg 1
+        equals (fun M ↦ M (x i)) ∘ (fun s ↦ ∑ n ∈ s, (n.factorial : R)⁻¹ • (A_left + A_right) ^ n) =>
+          apply funext
+          intro s
+          simp
+      apply Filter.Tendsto.comp (y := nhds (NormedSpace.exp (A_left + A_right)))
+      · simp only [NormedSpace.exp_eq_tsum R]
+        change ContinuousAt _ _
+        apply Continuous.continuousAt
+        apply Continuous.eval_const
+        exact continuous_id
+      exact NormedSpace.exp_series_hasSum_exp' _
+    · conv =>
+        arg 1; arg 1; intro n
+        rw [ad_pow, Finset.smul_sum]
+      apply HasSum.tsum_eq
+      simp only [HasSum, SummationFilter.unconditional_filter]
+      conv =>
+        arg 1
+        equals (fun K' ↦ ∑ j, K' i j • x j) ∘ (fun s ↦ ∑ n ∈ s, (n.factorial : R)⁻¹ • K ^ n) =>
+          apply funext
+          intro s
+          rw [Finset.sum_comm]
+          congr
+          apply funext
+          intro j
+          conv_lhs =>
+            arg 2; intro k
+            rw [smul_smul]
+          rw [← Finset.sum_smul]
+          simp only
+          congr
+          trans (∑ n ∈ s, (n.factorial : R)⁻¹ • (K ^ n) i) j
+          · apply Eq.symm
+            apply Finset.sum_apply
+          · apply congrFun
+            apply Eq.symm
+            apply Finset.sum_apply
+      apply Filter.Tendsto.comp (y := nhds (NormedSpace.exp K))
+      · simp only [NormedSpace.exp_eq_tsum R]
+        change ContinuousAt _ _
+        apply Continuous.continuousAt
+        simp_all only [map_neg, Commute.neg_right_iff, A_left, A_right]
+        apply continuous_finset_sum
+        intro i_1 a
+        simp_all only [Finset.mem_univ]
+        apply Continuous.smul
+        · change Continuous ((fun x ↦ x i_1) ∘ (fun (x : Matrix ι ι R) ↦ x i))
+          apply Continuous.comp
+          · apply continuous_apply
+          · apply continuous_apply
+        · apply continuous_const
+      exact NormedSpace.exp_series_hasSum_exp' K
 
   sorry
+
+
+
+
+
+
+
 
 
 
