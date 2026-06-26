@@ -12,38 +12,6 @@ open scoped ComplexOrder
 
 abbrev Operator := (Finset α → R) →L[R] (Finset α → R)
 
-class HasOverlap (α : Type) (R : outParam Type) [RCLike R] where
-  overlap : Matrix α α R
-  overlap_PosDef : overlap.PosDef
-
-namespace HasOverlap
-
-variable [HasOverlap α R] [LinearOrder α] 
-
-def innerMatrix : Matrix (Finset α) (Finset α) R :=
-  fun φ ψ =>
-    if  h : φ.card = ψ.card then
-      Matrix.det <| fun (i j : Fin φ.card) =>
-        overlap (φ.sort.get (i.cast (by simp))) (ψ.sort.get (j.cast (by simp[h])))
-    else
-      0
-
-theorem innerMatrix_PosDef : (innerMatrix α R).PosDef := by
-  sorry
-
-variable [Fintype α]
-
-noncomputable instance instNormedAddCommGroup : NormedAddCommGroup (Finset α → R) :=
-  Matrix.toNormedAddCommGroup (innerMatrix α R) (innerMatrix_PosDef α R)
-
-noncomputable instance instSemiNormedAddCommGroup : SeminormedAddCommGroup (Finset α → R) :=
-  Matrix.toSeminormedAddCommGroup (innerMatrix α R) (innerMatrix_PosDef α R).posSemidef
-
-noncomputable instance instInnerProductSpace : InnerProductSpace R (Finset α → R) :=
-  Matrix.toInnerProductSpace (innerMatrix α R) (innerMatrix_PosDef α R).posSemidef
-
-end HasOverlap
-
 variable {α} [LinearOrder α]
 
 def commSign (s : Finset α) (a : α) : ℤ :=
@@ -139,19 +107,125 @@ theorem ann_ann {x y : α} : ann R x * ann R y + ann R y * ann R x = 0 := by
   any_goals simp
   any_goals grind
 
-#check LinearMap.adjoint
-#check ContinuousLinearMap.adjoint
+instance [Fintype α] : NormedAlgebra ℚ (Operator α R →L[R] Operator α R) where
+  norm_smul_le _ _ := ContinuousLinearMap.opNorm_smul_le _ _
 
-set_option trace.Meta.synthInstance true in
-open HasOverlap in
-theorem cre_adj [Fintype α] [HasOverlap α R] {x : α} :
-    (ContinuousLinearMap.adjoint (cre R x) : Operator α R) = ∑ y, (overlap x y) • (ann R y) := by
-  sorry
+instance [Fintype α] : CompleteSpace (Operator α R →L[R] Operator α R) :=
+  FiniteDimensional.complete R (Operator α R →L[R] Operator α R)
 
+--def mulLeft : Operator α R →L[R] Operator α R →L[R] Operator α R := by
+
+set_option maxHeartbeats 0 in
+open ContinuousLinearMap in
 theorem exp_adj [Fintype α] (A : Operator α R) {ι : Type} [Fintype ι] [DecidableEq ι]
   (x : ι → Operator α R) (K : Matrix ι ι R)
   (h : ∀ i, A * x i - x i * A = ∑ j, K i j • x j) :
-    ∀ i, NormedSpace.exp A * x i * NormedSpace.exp (-A) = ∑ j, (NormedSpace.exp K) i j • x j := sorry
+    ∀ i, NormedSpace.exp A * x i * NormedSpace.exp (-A) = ∑ j, (NormedSpace.exp K) i j • x j := by
+  let A_left := mulLeftRight R (Operator α R) A 1
+  let A_right := mulLeftRight R (Operator α R) 1 (-A)
+  have commute_A_left_A_right : Commute A_left A_right := by
+    ext X φ s
+    simp [A_left, A_right]
+  have := NormedSpace.exp_add_of_commute commute_A_left_A_right
+  have A_left_pow (n : ℕ) : A_left ^ n = mulLeftRight R (Operator α R) (A ^ n) 1 := by
+    induction n with
+    | zero => rfl
+    | succ n ih =>
+      rw [pow_succ, ih, pow_succ]
+      ext X φ s
+      simp [A_left]
+  have A_right_pow (n : ℕ) : A_right ^ n = mulLeftRight R (Operator α R) 1 ((-A) ^ n) := by
+    induction n with
+    | zero => rfl
+    | succ n ih =>
+      rw [pow_succ, ih, pow_succ]
+      ext X φ s
+      simp only [coe_mul, Function.comp_apply, mulLeftRight_apply, one_mul, A_right]
+      apply congr_fun
+      congr 1
+      change (-A * (-A) ^ n) φ = ((-A) ^ n * -A) φ
+      congr 1
+      trans (-A) ^ (n + 1)
+      · rw [add_comm, pow_add, pow_one]
+      · rw [pow_succ]
+  have exp_A_left : NormedSpace.exp A_left = mulLeftRight R (Operator α R) (NormedSpace.exp A) 1 := by
+    rw [NormedSpace.exp_eq_tsum R]
+    simp only [A_left_pow]
+    apply HasSum.tsum_eq
+    simp only [HasSum, SummationFilter.unconditional_filter]
+    conv =>
+      arg 1
+      equals (fun x ↦ mulLeftRight R (Operator α R) x 1) ∘ (fun s ↦ ∑ x ∈ s, (x.factorial : R)⁻¹ • A ^ x) =>
+        apply funext
+        intro s
+        simp only [Function.comp_apply, map_sum, map_smul, coe_sum', coe_smul', Finset.sum_apply,
+          Pi.smul_apply]
+    apply Filter.Tendsto.comp (y := nhds (NormedSpace.exp A))
+    · change ContinuousAt (fun x ↦ ((mulLeftRight R (Operator α R)) x) 1) (NormedSpace.exp A)
+      apply Continuous.continuousAt
+      conv =>
+        arg 1
+        equals (fun x ↦ x 1) ∘ mulLeftRight R (Operator α R) =>
+          apply funext
+          intro x
+          simp
+      apply Continuous.comp
+      · apply Continuous.clm_apply
+        · apply continuous_id'
+        · apply continuous_const
+      exact (mulLeftRight R (Operator α R)).cont
+    exact NormedSpace.exp_series_hasSum_exp' A
+
+  have exp_A_right : NormedSpace.exp A_right = mulLeftRight R (Operator α R) 1 (NormedSpace.exp (-A)) := by
+    rw [NormedSpace.exp_eq_tsum R]
+    simp only [A_right_pow]
+    apply HasSum.tsum_eq
+    simp only [HasSum, SummationFilter.unconditional_filter]
+    conv =>
+      arg 1
+      equals (fun x ↦ mulLeftRight R (Operator α R) 1 x) ∘ (fun s ↦ ∑ x ∈ s, (x.factorial : R)⁻¹ • (-A) ^ x) =>
+        apply funext
+        intro s
+        simp only [Function.comp_apply, map_sum, map_smul]
+    apply Filter.Tendsto.comp (y := nhds (NormedSpace.exp (-A)))
+    · change ContinuousAt (fun x ↦ ((mulLeftRight R (Operator α R)) 1) x) (NormedSpace.exp (-A))
+      apply Continuous.continuousAt
+      exact (mulLeftRight R (Operator α R) 1).cont
+    exact NormedSpace.exp_series_hasSum_exp' (-A)
+  have ad_pow (n : ℕ) : ∀ i, ((A_left + A_right) ^ n) (x i) = ∑ j, (K ^ n) i j • x j := by
+    induction n with
+    | zero => simp [Matrix.one_apply]
+    | succ n ih =>
+      intro i
+      rw [pow_succ, ContinuousLinearMap.mul_apply]
+      conv_lhs =>
+        arg 2
+        simp [A_left, A_right, ← sub_eq_add_neg, h]
+      rw [map_sum]
+      conv_lhs =>
+        arg 2; intro j
+        rw [map_smul, ih, Finset.smul_sum]
+        arg 2; intro k
+        rw [smul_smul]
+      rw [Finset.sum_comm]
+      conv_lhs =>
+        arg 2; intro j
+        rw [← Finset.sum_smul]
+        change (K * K ^ n) i j • x j
+      rw [add_comm, pow_add, pow_one]
+  have exp_ad : ∀ i, NormedSpace.exp (A_left + A_right) (x i) = ∑ j, NormedSpace.exp K i j • x j := by
+    intro i
+    simp [NormedSpace.exp_eq_tsum R]
+    --trans ∑' (n : ℕ), (n.factorial : R)⁻¹ • ((A_left + A_right) ^ n) (x i)
+    --· have := tsum_apply (x := x i) (L := SummationFilter.unconditional ℕ) (f := fun n ↦ (n.factorial : R)⁻¹ • ((A_left + A_right) ^ n))
+    --    (NormedSpace.exp_series_hasSum_exp' (A_left + A_right)).summable)
+    apply HasSum.tsum_eq
+
+  sorry
+
+
+
+
 
 end Fermion
 
