@@ -1,7 +1,8 @@
 import Mathlib.Tactic
 import Mathlib.LinearAlgebra.Matrix.PosDef
 import Mathlib.Analysis.Matrix.PosDef
-import Mathlib.Analysis.LocallyConvex.WeakOperatorTopology
+import Mathlib.Analysis.Normed.Operator.NormedSpace
+import Mathlib.Analysis.Normed.Ring.Lemmas
 
 namespace Fermion
 
@@ -9,7 +10,7 @@ variable (α R : Type) [RCLike R]
 
 open scoped ComplexOrder
 
-abbrev Operator := (Finset α → R) →ₗ[R] (Finset α → R)
+abbrev Operator := (Finset α → R) →L[R] (Finset α → R)
 
 class HasOverlap (α : Type) (R : outParam Type) [RCLike R] where
   overlap : Matrix α α R
@@ -83,6 +84,15 @@ def cre (x : α) : Operator α R where
       ite_mul, one_mul, neg_mul, neg_add_rev]
     grind
 
+@[continuity]
+theorem continuous_ite_left {c : Prop} [Decidable c] {β : Type} [TopologicalSpace β] {x : β} :
+    Continuous (ite c x) := by
+  by_cases h : c
+  · rw [show ite c x = fun _ => x by ext; simp [h]]
+    exact continuous_const
+  · rw [show ite c x = id by ext; simp [h]]
+    exact continuous_id
+
 def ann (x : α) : Operator α R where
   toFun φ s := if x ∉ s then commSign s x * φ (insert x s) else 0
   map_smul' a φ := by ext s; simp[commSign]
@@ -129,10 +139,19 @@ theorem ann_ann {x y : α} : ann R x * ann R y + ann R y * ann R x = 0 := by
   any_goals simp
   any_goals grind
 
+#check LinearMap.adjoint
+#check ContinuousLinearMap.adjoint
+
+set_option trace.Meta.synthInstance true in
 open HasOverlap in
 theorem cre_adj [Fintype α] [HasOverlap α R] {x : α} :
-    (cre R x).adjoint = ∑ y, (overlap x y) • (ann R y) := by
+    (ContinuousLinearMap.adjoint (cre R x) : Operator α R) = ∑ y, (overlap x y) • (ann R y) := by
   sorry
+
+theorem exp_adj [Fintype α] (A : Operator α R) {ι : Type} [Fintype ι] [DecidableEq ι]
+  (x : ι → Operator α R) (K : Matrix ι ι R)
+  (h : ∀ i, A * x i - x i * A = ∑ j, K i j • x j) :
+    ∀ i, NormedSpace.exp A * x i * NormedSpace.exp (-A) = ∑ j, (NormedSpace.exp K) i j • x j := sorry
 
 end Fermion
 
