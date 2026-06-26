@@ -120,7 +120,7 @@ variable {ι : Type} [Fintype ι] [DecidableEq ι]
 
 open scoped Matrix.Norms.Operator
 
-instance : CompleteSpace (Matrix ι ι R) := FiniteDimensional.complete R (Matrix ι ι R)
+--instance : CompleteSpace (Matrix ι ι R) := FiniteDimensional.complete R (Matrix ι ι R)
 
 --def mulLeft : Operator α R →L[R] Operator α R →L[R] Operator α R := by
 
@@ -282,12 +282,15 @@ theorem exp_adj [Fintype α] (A : Operator α R)
           · apply continuous_apply
           · apply continuous_apply
         · apply continuous_const
-      --clear * -
-      --haveI : NormedSpace R (Matrix ι ι R) := Matrix.instL2OpNormedSpace
-      have := NormedSpace.exp_series_hasSum_exp' K
+      exact NormedSpace.exp_series_hasSum_exp' (𝕂 := R) K
 
-
-  sorry
+  intro i
+  have key : (NormedSpace.exp (A_left + A_right)) (x i) =
+      NormedSpace.exp A * x i * NormedSpace.exp (-A) := by
+    rw [this, exp_A_left, exp_A_right]
+    simp only [ContinuousLinearMap.coe_mul, Function.comp_apply,
+      ContinuousLinearMap.mulLeftRight_apply, one_mul, mul_one, mul_assoc]
+  rw [← key, exp_ad]
 
 end
 
