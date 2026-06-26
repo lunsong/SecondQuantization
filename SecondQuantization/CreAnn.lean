@@ -3,6 +3,7 @@ import Mathlib.LinearAlgebra.Matrix.PosDef
 import Mathlib.Analysis.Matrix.PosDef
 import Mathlib.Analysis.Normed.Operator.NormedSpace
 import Mathlib.Analysis.Normed.Ring.Lemmas
+import Mathlib.Analysis.CStarAlgebra.Matrix
 
 namespace Fermion
 
@@ -113,10 +114,19 @@ instance [Fintype α] : NormedAlgebra ℚ (Operator α R →L[R] Operator α R) 
 instance [Fintype α] : CompleteSpace (Operator α R →L[R] Operator α R) :=
   FiniteDimensional.complete R (Operator α R →L[R] Operator α R)
 
+section
+
+variable {ι : Type} [Fintype ι] [DecidableEq ι]
+
+open scoped Matrix.Norms.Operator
+
+instance : CompleteSpace (Matrix ι ι R) := FiniteDimensional.complete R (Matrix ι ι R)
+
 --def mulLeft : Operator α R →L[R] Operator α R →L[R] Operator α R := by
 
+
 set_option maxHeartbeats 0 in
-theorem exp_adj [Fintype α] (A : Operator α R) {ι : Type} [Fintype ι] [DecidableEq ι]
+theorem exp_adj [Fintype α] (A : Operator α R)
   (x : ι → Operator α R) (K : Matrix ι ι R)
   (h : ∀ i, A * x i - x i * A = ∑ j, K i j • x j) :
     ∀ i, NormedSpace.exp A * x i * NormedSpace.exp (-A) = ∑ j, (NormedSpace.exp K) i j • x j := by
@@ -272,19 +282,14 @@ theorem exp_adj [Fintype α] (A : Operator α R) {ι : Type} [Fintype ι] [Decid
           · apply continuous_apply
           · apply continuous_apply
         · apply continuous_const
-      exact NormedSpace.exp_series_hasSum_exp' K
+      --clear * -
+      --haveI : NormedSpace R (Matrix ι ι R) := Matrix.instL2OpNormedSpace
+      have := NormedSpace.exp_series_hasSum_exp' K
+
 
   sorry
 
-
-
-
-
-
-
-
-
-
+end
 
 
 end Fermion
