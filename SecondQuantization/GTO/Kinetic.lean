@@ -995,4 +995,43 @@ theorem kinetic_primitiveGTO_s_diff_center (α β : ℝ) (hα : 0 < α) (hβ : 0
         (3 - 2 * α * β / (α + β) * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
         overlap (primitiveGTO_s α R₁) (primitiveGTO_s β R₂) := by simp [hγ]
 
+/-! ## General angular-momentum kinetic-energy integral -/
+
+/-- Angular-momentum multi-index with coordinate `i` raised by one. -/
+def primAngMomPlus (i : Fin 3) (l : Fin 3 → ℕ) : Fin 3 → ℕ :=
+  fun j => if j = i then l j + 1 else l j
+
+/-- Angular-momentum multi-index with coordinate `i` lowered by one. Natural subtraction makes
+`l i - 1 = 0` when `l i = 0`; the corresponding term is then annihilated by its `l i` coefficient
+in `fderiv_primitiveGTO`, so the derivative identity stays valid at `l i = 0`. -/
+def primAngMomMinus (i : Fin 3) (l : Fin 3 → ℕ) : Fin 3 → ℕ :=
+  fun j => if j = i then l j - 1 else l j
+
+/-- Coordinate-`i` Fréchet derivative of a primitive GTO of general angular momentum:
+  `∂ᵢ primitiveGTO α R l = lᵢ · primitiveGTO α R (l - eᵢ) - 2α · primitiveGTO α R (l + eᵢ)`.
+The product rule differentiates the polynomial prefactor (lowering `lᵢ` by one, coefficient `lᵢ`)
+and the Gaussian (raising `lᵢ` by one, coefficient `-2α`). -/
+lemma fderiv_primitiveGTO (α : ℝ) (R : ℝ³) (l : Fin 3 → ℕ) (i : Fin 3) (r : ℝ³) :
+    fderiv ℝ (primitiveGTO α R l) r (Pi.single i 1) =
+      (l i : ℝ) * primitiveGTO α R (primAngMomMinus i l) r
+        - (2 * α) * primitiveGTO α R (primAngMomPlus i l) r := by
+  sorry
+
+/-- Closed form of the kinetic-energy integral for two primitive GTOs of general angular momentum,
+obtained by expanding each coordinate derivative via `fderiv_primitiveGTO` and pulling the four
+resulting overlap-type integrals through by bilinearity. Specializing `l = m = 0` recovers
+`kinetic_primitiveGTO_s_same_center` / `kinetic_primitiveGTO_s_diff_center`. -/
+theorem kinetic_primitiveGTO (α β : ℝ) (hα : 0 < α) (hβ : 0 < β) (R₁ R₂ : ℝ³) (l m : Fin 3 → ℕ) :
+    kinetic (primitiveGTO α R₁ l) (primitiveGTO β R₂ m) =
+      (1 / 2) * ∑ i : Fin 3,
+        ( (l i : ℝ) * (m i : ℝ) *
+            overlap (primitiveGTO α R₁ (primAngMomMinus i l)) (primitiveGTO β R₂ (primAngMomMinus i m))
+          - (2 * β) * (l i : ℝ) *
+            overlap (primitiveGTO α R₁ (primAngMomMinus i l)) (primitiveGTO β R₂ (primAngMomPlus i m))
+          - (2 * α) * (m i : ℝ) *
+            overlap (primitiveGTO α R₁ (primAngMomPlus i l)) (primitiveGTO β R₂ (primAngMomMinus i m))
+          + (4 * α * β) *
+            overlap (primitiveGTO α R₁ (primAngMomPlus i l)) (primitiveGTO β R₂ (primAngMomPlus i m)) ) := by
+  sorry
+
 end GTO

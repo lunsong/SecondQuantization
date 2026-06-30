@@ -37,6 +37,29 @@ nuclear-attraction and electron-repulsion integrals reduce. This is the zeroth B
 `F₀(t)`; higher angular momenta would require `Fₖ(t) = ∫₀¹ u^(2k) exp(-t u²) du`. -/
 noncomputable def boys0 (t : ℝ) : ℝ := ∫ u in (0:ℝ)..1, Real.exp (-t * u ^ 2)
 
+/-- The `n`-th Boys function `boys n t = ∫₀¹ u^(2n) · exp(-t·u²) du`, so `boys 0 = boys0`.
+Higher angular momenta in the nuclear-attraction and electron-repulsion integrals reduce to
+finite linear combinations of `boys n` (via the recurrences `boys_succ_*` and the auxiliary
+moment recurrences `coulombMomentν_succ`, `eriMomentν_succ_*` below). -/
+noncomputable def boys (n : ℕ) (t : ℝ) : ℝ :=
+  ∫ u in (0:ℝ)..1, u ^ (2 * n) * Real.exp (-t * u ^ 2)
+
+/-- The zeroth Boys function is `boys0`. -/
+lemma boys_eq_boys0 : boys 0 = boys0 := by sorry
+
+/-- Value at the origin: `boys n 0 = 1/(2n+1)`. -/
+lemma boys_zero_val (n : ℕ) : boys n 0 = 1 / (2 * (n : ℝ) + 1) := by sorry
+
+/-- Vertical recurrence `boys (n+1) t = ((2n+1)·boys n t - exp(-t)) / (2t)` for `t ≠ 0`,
+obtained by integrating `d(u^(2n+1)·exp(-t·u²))/du` over `[0,1]`. -/
+lemma boys_succ (n : ℕ) (t : ℝ) (ht : t ≠ 0) :
+    boys (n + 1) t = ((2 * (n : ℝ) + 1) * boys n t - Real.exp (-t)) / (2 * t) := by sorry
+
+/-- The `n`-th `t`-derivative of `boys0` is `(-1)^n · boys n`, since differentiating under the
+integral brings down a factor `(-u²)^n`. -/
+lemma boys_iteratedDeriv (n : ℕ) (t : ℝ) :
+    (deriv^[n] boys0) t = (-1 : ℝ) ^ n * boys n t := by sorry
+
 /-! ## 1. Derivative of `u/√(γ+u²)` = `γ/(γ+u²)^(3/2)` -/
 
 /-- Derivative of `x ↦ x / √(γ + x²)`: it is `γ / (γ + x²)^(3/2)`, which is positive for
@@ -1201,5 +1224,129 @@ theorem electronRepulsion_primitiveGTO_s
   rw [show (α₃ + α₄) * (α₁ + α₂) = (α₁ + α₂) * (α₃ + α₄) by ring,
       show (α₃ + α₄) + (α₁ + α₂) = (α₁ + α₂) + (α₃ + α₄) by ring]
   field_simp [hp_inner_ne, hq_inner_ne, hpq_ne]
+
+/-! ## 12. Higher angular momentum: Coulomb moment auxiliaries and the Boys reduction
+
+The s-type results above express the Coulomb integrals in terms of `boys0`. For general angular
+momentum the Gaussian product theorem still localizes the bra/ket to a single Gaussian, but the
+polynomial prefactor `∏ᵢ (rᵢ+Aᵢ)^lᵢ (rᵢ+Bᵢ)^mᵢ` survives. Expanding it by the binomial theorem
+leaves a finite sum of **Coulomb moment integrals** — moments of a single Gaussian against the
+Coulomb kernel — which reduce to the higher Boys functions `boys n`.
+
+We isolate these moments as the auxiliaries `coulombMomentν` (one-electron) and `eriMomentν`
+(two-electron). Their evaluation is governed by a base case (the s-type identity already proved
+above) and the McMurchie–Davidson transfer recurrences, which raise a Cartesian moment by one unit
+in a coordinate in exchange for a partial derivative of the moment with respect to the Coulomb
+center. Iterating the recurrence expresses every moment as a derivative (in `D` or `W`) of the base
+`boys0`, hence (via `boys_iteratedDeriv`) as a finite linear combination of `boys n`.
+
+The statements below are asserted without proof; they are the scaffold for a future derivation.
+Each main theorem specializes, at `l = m = 0`, to the corresponding s-type result of sections 9/11.
+-/
+
+/-- The one-electron Coulomb moment: the Gaussian-weighted integral of a monomial `∏ᵢ rᵢ^νᵢ`
+against the Coulomb kernel `1/‖r - D‖`,
+  `coulombMomentν ν γ D = ∫ ∏ᵢ rᵢ^νᵢ · exp(-γ·‖r‖²) · (1/‖r-D‖) dr`.
+For `ν = 0` this is `integral_exp_neg_mul_sq_coulomb`, i.e. `(2π/γ)·boys0(γ·‖D‖²)`. -/
+noncomputable def coulombMomentν (ν : Fin 3 → ℕ) (γ : ℝ) (D : ℝ³) : ℝ :=
+  ∫ r : ℝ³, (∏ i : Fin 3, r i ^ ν i) * Real.exp (-γ * ∑ i : Fin 3, (r i) ^ 2) * coulomb r D
+
+/-- The two-electron Coulomb moment: moments of two Gaussians (exponents `p`, `q`) against the
+Coulomb kernel `1/‖r₁ - r₂ + W‖` (with `W = P - Q` the separation of the two product centers),
+  `eriMomentν ν μ p q W =
+    ∫∫ ∏ᵢ r₁ᵢ^νᵢ · ∏ᵢ r₂ᵢ^μᵢ · exp(-p·‖r₁‖² - q·‖r₂‖²) · (1/‖r₁ - r₂ + W‖) dr₁ dr₂`.
+For `ν = μ = 0` this is the s-type ERI auxiliary, i.e.
+`(2π^(5/2))/(p·q·√(p+q))·boys0(pq/(p+q)·‖W‖²)`. -/
+noncomputable def eriMomentν (ν μ : Fin 3 → ℕ) (p q : ℝ) (W : ℝ³) : ℝ :=
+  ∫ r₁ : ℝ³, ∫ r₂ : ℝ³,
+    (∏ i : Fin 3, r₁ i ^ ν i) * (∏ i : Fin 3, r₂ i ^ μ i) *
+      Real.exp (-p * ∑ i : Fin 3, (r₁ i) ^ 2) * Real.exp (-q * ∑ i : Fin 3, (r₂ i) ^ 2) *
+      coulomb r₁ (r₂ - W)
+
+/-- Base case of the Coulomb moment: the s-type (zero-moment) identity `integral_exp_neg_mul_sq_coulomb`. -/
+lemma coulombMomentν_zero (γ : ℝ) (hγ : 0 < γ) (D : ℝ³) :
+    coulombMomentν 0 γ D = (2 * π / γ) * boys0 (γ * ∑ i : Fin 3, (D i) ^ 2) := by sorry
+
+/-- McMurchie–Davidson transfer recurrence (one-electron). Raising the `i`-th Cartesian moment by
+one costs a `Dᵢ`-derivative of the lower moment (from `rᵢ·exp(-γ‖r‖²) = -(2γ)⁻¹·∂_{rᵢ}exp(-γ‖r‖²)`
+and integration by parts, using `∂_{rᵢ} coulomb(r,D) = -∂_{Dᵢ} coulomb(r,D)`), plus a
+`(νᵢ/(2γ))·coulombMomentν(ν-eᵢ)` term from differentiating the polynomial prefactor. -/
+lemma coulombMomentν_succ (ν : Fin 3 → ℕ) (γ : ℝ) (hγ : 0 < γ) (i : Fin 3) (D : ℝ³) :
+    coulombMomentν (Function.update ν i (ν i + 1)) γ D =
+      (ν i : ℝ) / (2 * γ) * coulombMomentν (Function.update ν i (ν i - 1)) γ D
+        - (1 / (2 * γ))
+            * deriv (fun x => coulombMomentν ν γ (Function.update D i x)) (D i) := by sorry
+
+/-- Base case of the two-electron Coulomb moment: the s-type ERI auxiliary. -/
+lemma eriMomentν_zero (p q : ℝ) (hp : 0 < p) (hq : 0 < q) (W : ℝ³) :
+    eriMomentν 0 0 p q W =
+      (2 * π ^ (5/2 : ℝ)) / (p * q * Real.sqrt (p + q))
+        * boys0 (p * q / (p + q) * ∑ i : Fin 3, (W i) ^ 2) := by sorry
+
+/-- Transfer recurrence for the `r₁`-moment (electron 1), with sign `+1/(2p)` on the derivative
+(since `∂_{r₁ᵢ} coulomb(r₁,r₂-W) = ∂_{Wᵢ} coulomb(r₁,r₂-W)`). -/
+lemma eriMomentν_succ_left (ν μ : Fin 3 → ℕ) (p q : ℝ) (hp : 0 < p) (hq : 0 < q)
+    (i : Fin 3) (W : ℝ³) :
+    eriMomentν (Function.update ν i (ν i + 1)) μ p q W =
+      (ν i : ℝ) / (2 * p) * eriMomentν (Function.update ν i (ν i - 1)) μ p q W
+        + (1 / (2 * p))
+            * deriv (fun x => eriMomentν ν μ p q (Function.update W i x)) (W i) := by sorry
+
+/-- Transfer recurrence for the `r₂`-moment (electron 2), with sign `-1/(2q)` on the derivative
+(since `∂_{r₂ᵢ} coulomb(r₁,r₂-W) = -∂_{Wᵢ} coulomb(r₁,r₂-W)`). -/
+lemma eriMomentν_succ_right (ν μ : Fin 3 → ℕ) (p q : ℝ) (hp : 0 < p) (hq : 0 < q)
+    (i : Fin 3) (W : ℝ³) :
+    eriMomentν ν (Function.update μ i (μ i + 1)) p q W =
+      (μ i : ℝ) / (2 * q) * eriMomentν ν (Function.update μ i (μ i - 1)) p q W
+        - (1 / (2 * q))
+            * deriv (fun x => eriMomentν ν μ p q (Function.update W i x)) (W i) := by sorry
+
+/-- Closed form of the nuclear-attraction integral for two primitive GTOs of general angular
+momentum. The Gaussian product theorem localizes the product to the center `P =
+gaussianProductCenter α β R₁ R₂`; translating `r ↦ r + P` and binomial-expanding the surviving
+polynomial leaves a finite sum of Coulomb moments `coulombMomentν` at the shifted nucleus
+`D = C - P`, with prefactor `K = exp(-αβ/(α+β)·‖R₁-R₂‖²)`. At `l = m = 0` the sum collapses to the
+single base moment and this reproduces `nuclearAttraction_primitiveGTO_s`. -/
+theorem nuclearAttraction_primitiveGTO (α β : ℝ) (hα : 0 < α) (hβ : 0 < β)
+    (R₁ R₂ C : ℝ³) (l m : Fin 3 → ℕ) :
+    let P : ℝ³ := gaussianProductCenter α β R₁ R₂
+    let γ : ℝ := α + β
+    nuclearAttraction C (primitiveGTO α R₁ l) (primitiveGTO β R₂ m) =
+      Real.exp (-(α * β) / γ * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+        (∑ a ∈ Fintype.piFinset (fun i : Fin 3 => Finset.range (l i + 1)),
+          ∑ b ∈ Fintype.piFinset (fun i : Fin 3 => Finset.range (m i + 1)),
+            (∏ i : Fin 3,
+              ((l i).choose (a i) : ℝ) * ((m i).choose (b i) : ℝ) *
+                (P i - R₁ i) ^ (l i - a i) * (P i - R₂ i) ^ (m i - b i)) *
+              coulombMomentν (fun i : Fin 3 => a i + b i) γ (C - P)) := by
+  sorry
+
+/-- Closed form of the two-electron repulsion integral for four primitive GTOs of general angular
+momentum. Both bra and ket are localized by the Gaussian product theorem (centers `P`, `Q`), the
+surviving polynomials binomial-expand into a finite sum of two-electron Coulomb moments
+`eriMomentν` at separation `W = P - Q`, with prefactors `K₁·K₂`. At zero angular momentum the sum
+collapses to the base moment and this reproduces `electronRepulsion_primitiveGTO_s`. -/
+theorem electronRepulsion_primitiveGTO (α₁ α₂ α₃ α₄ : ℝ)
+    (hα₁ : 0 < α₁) (hα₂ : 0 < α₂) (hα₃ : 0 < α₃) (hα₄ : 0 < α₄)
+    (R₁ R₂ R₃ R₄ : ℝ³) (l₁ l₂ l₃ l₄ : Fin 3 → ℕ) :
+    let P : ℝ³ := gaussianProductCenter α₁ α₂ R₁ R₂
+    let Q : ℝ³ := gaussianProductCenter α₃ α₄ R₃ R₄
+    let pp : ℝ := α₁ + α₂
+    let qq : ℝ := α₃ + α₄
+    electronRepulsion (primitiveGTO α₁ R₁ l₁) (primitiveGTO α₂ R₂ l₂)
+        (primitiveGTO α₃ R₃ l₃) (primitiveGTO α₄ R₄ l₄) =
+      Real.exp (-(α₁ * α₂) / pp * ∑ i : Fin 3, (R₁ i - R₂ i) ^ 2) *
+        Real.exp (-(α₃ * α₄) / qq * ∑ i : Fin 3, (R₃ i - R₄ i) ^ 2) *
+        (∑ a ∈ Fintype.piFinset (fun i : Fin 3 => Finset.range (l₁ i + 1)),
+          ∑ b ∈ Fintype.piFinset (fun i : Fin 3 => Finset.range (l₂ i + 1)),
+            ∑ c ∈ Fintype.piFinset (fun i : Fin 3 => Finset.range (l₃ i + 1)),
+              ∑ d ∈ Fintype.piFinset (fun i : Fin 3 => Finset.range (l₄ i + 1)),
+                (∏ i : Fin 3,
+                  ((l₁ i).choose (a i) : ℝ) * ((l₂ i).choose (b i) : ℝ) *
+                    ((l₃ i).choose (c i) : ℝ) * ((l₄ i).choose (d i) : ℝ) *
+                    (P i - R₁ i) ^ (l₁ i - a i) * (Q i - R₃ i) ^ (l₃ i - c i) *
+                    (P i - R₂ i) ^ (l₂ i - b i) * (Q i - R₄ i) ^ (l₄ i - d i)) *
+                  eriMomentν (fun i : Fin 3 => a i + b i) (fun i : Fin 3 => c i + d i) pp qq (P - Q)) := by
+  sorry
 
 end GTO

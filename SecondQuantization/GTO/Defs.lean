@@ -48,6 +48,13 @@ notation (name := R3) "ℝ³" => Fin 3 → ℝ
 
 open Real MeasureTheory
 
+/-- The Gaussian product center `P = (α·R₁ + β·R₂)/(α + β)`, the single center at which the
+product of two Gaussians with exponents `α`, `β` and centers `R₁`, `R₂` localizes (Gaussian
+product theorem). It is the common translation target of the overlap, kinetic, nuclear-attraction,
+and electron-repulsion closed forms. -/
+noncomputable def gaussianProductCenter (α β : ℝ) (R₁ R₂ : ℝ³) : ℝ³ :=
+  fun i => (α * R₁ i + β * R₂ i) / (α + β)
+
 /-- A primitive Cartesian Gaussian Type Orbital with center `R`, exponent `α` and
 angular momentum quantum numbers `l : Fin 3 → ℕ`:
   `φ(r) = ∏ᵢ (rᵢ - Rᵢ)^lᵢ · exp (-α · ‖r - R‖²)`. -/
