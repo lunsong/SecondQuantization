@@ -4,6 +4,7 @@ import Mathlib.Analysis.Matrix.PosDef
 import Mathlib.Analysis.Normed.Operator.NormedSpace
 import Mathlib.Analysis.Normed.Ring.Lemmas
 import Mathlib.Analysis.CStarAlgebra.Matrix
+import Mathlib.Analysis.Normed.Algebra.MatrixExponential
 
 namespace Fermion
 
@@ -114,22 +115,80 @@ instance [Fintype α] : NormedAlgebra ℚ (Operator α R →L[R] Operator α R) 
 instance [Fintype α] : CompleteSpace (Operator α R →L[R] Operator α R) :=
   FiniteDimensional.complete R (Operator α R →L[R] Operator α R)
 
-section
+theorem ContinuousLinearMap.exp_eq_of_pow_eq 
+  {A B : Type} [NormedRing A] [Ring B]
+  [TopologicalSpace B] [IsTopologicalRing B]
+  [NormedAlgebra R A] [Algebra R B] [T2Space B] [CompleteSpace A]
+  {X : A} {Y : B} {f : A →L[R] B} (h : ∀ n : ℕ, f (X ^ n) = Y ^ n) :
+    f (NormedSpace.exp X) = NormedSpace.exp Y := by
+  simp only [NormedSpace.exp_eq_tsum R]
+  rw [ContinuousLinearMap.map_tsum]
+  · congr
+    ext n
+    rw [map_smul, h]
+  use NormedSpace.exp X
+  exact NormedSpace.exp_series_hasSum_exp' (𝕂 := R) X
 
-variable {ι : Type} [Fintype ι] [DecidableEq ι]
-
-open scoped Matrix.Norms.Operator
-
---instance : CompleteSpace (Matrix ι ι R) := FiniteDimensional.complete R (Matrix ι ι R)
-
---def mulLeft : Operator α R →L[R] Operator α R →L[R] Operator α R := by
+@[continuity]
+theorem Matrix.continuous_apply {ι : Type} [Fintype ι] [DecidableEq ι]
+  (i j : ι) : Continuous fun (M : Matrix ι ι R) ↦ M i j := by
+  change Continuous ((fun x ↦ x j) ∘ (fun (M : Matrix ι ι R) ↦ M i))
+  apply Continuous.comp <;> apply _root_.continuous_apply
 
 
-set_option maxHeartbeats 0 in
 theorem exp_adj [Fintype α] (A : Operator α R)
+  {ι : Type} [Fintype ι] [DecidableEq ι]
   (x : ι → Operator α R) (K : Matrix ι ι R)
   (h : ∀ i, A * x i - x i * A = ∑ j, K i j • x j) :
     ∀ i, NormedSpace.exp A * x i * NormedSpace.exp (-A) = ∑ j, (NormedSpace.exp K) i j • x j := by
+  let A_left := ContinuousLinearMap.mul R (Operator α R) A
+  let A_right := (ContinuousLinearMap.mul R (Operator α R)).flip A
+  have h_commute : Commute A_left A_right := by ext1 X; simp [A_left, A_right, mul_assoc]
+  have h1 := NormedSpace.exp_add_of_commute h_commute
+  have h_expA_left : NormedSpace.exp A_left =
+      ContinuousLinearMap.mul R (Operator α R) (NormedSpace.exp A) := by
+    apply Eq.symm
+    apply ContinuousLinearMap.exp_eq_of_pow_eq
+    intro n
+    ext1 X
+    induction n with
+    | zero =>
+      rfl
+    | succ n ih =>
+      simp only [ContinuousLinearMap.mul_apply'] at ih ⊢
+      rw [add_comm, pow_add, pow_one, mul_assoc, ih, pow_add, pow_one]
+      simp only [ContinuousLinearMap.coe_mul, Function.comp_apply, ContinuousLinearMap.mul_apply',
+        A_left]
+  have h_expA_left : NormedSpace.exp A_right =
+      (ContinuousLinearMap.mul R (Operator α R)).flip (NormedSpace.exp A) := by
+    apply Eq.symm
+    apply ContinuousLinearMap.exp_eq_of_pow_eq
+    intro n
+    ext1 X
+    induction n with
+    | zero =>
+      rfl
+    | succ n ih =>
+      simp only [ContinuousLinearMap.flip_apply, ContinuousLinearMap.mul_apply'] at ih ⊢
+      rw [pow_succ, ← mul_assoc, ih, add_comm, pow_add, pow_one]
+      simp only [ContinuousLinearMap.coe_mul, Function.comp_apply, ContinuousLinearMap.flip_apply,
+        ContinuousLinearMap.mul_apply', A_right]
+  intro i
+  let φ : (Matrix ι ι R) →L[R] Operator α R := {
+    toFun M := ∑ j, M i j • x j
+    map_add' M N := by simp only [Matrix.add_apply, add_smul, Finset.sum_add_distrib]
+    map_smul' k M := by simp only [Matrix.smul_apply, smul_assoc, RingHom.id_apply, Finset.smul_sum]
+  }
+
+
+
+
+
+      
+
+
+  sorry
+  /-
   let A_left := ContinuousLinearMap.mulLeftRight R (Operator α R) A 1
   let A_right := ContinuousLinearMap.mulLeftRight R (Operator α R) 1 (-A)
   have commute_A_left_A_right : Commute A_left A_right := by
@@ -282,7 +341,7 @@ theorem exp_adj [Fintype α] (A : Operator α R)
           · apply continuous_apply
           · apply continuous_apply
         · apply continuous_const
-      exact NormedSpace.exp_series_hasSum_exp' (𝕂 := R) K
+      open scoped Matrix.Norms.Operator in exact NormedSpace.exp_series_hasSum_exp' (𝕂 := R) K
 
   intro i
   have key : (NormedSpace.exp (A_left + A_right)) (x i) =
@@ -291,9 +350,7 @@ theorem exp_adj [Fintype α] (A : Operator α R)
     simp only [ContinuousLinearMap.coe_mul, Function.comp_apply,
       ContinuousLinearMap.mulLeftRight_apply, one_mul, mul_one, mul_assoc]
   rw [← key, exp_ad]
-
-end
-
+  -/
 
 end Fermion
 
